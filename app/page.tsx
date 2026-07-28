@@ -15,6 +15,28 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
+import {
+  LayoutDashboard,
+  Target,
+  ShieldCheck,
+  PlusCircle,
+  UploadCloud,
+  Settings as SettingsIcon,
+  Sun,
+  Moon,
+  Pencil,
+  Trash2,
+  Repeat,
+  PieChart as PieChartIcon,
+  BarChart3,
+  Save,
+  LogOut,
+  TrendingUp,
+  TrendingDown,
+  Scale,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
 
 export interface Transaction {
   id: string;
@@ -38,14 +60,42 @@ export interface SavingsGoal {
 }
 
 const DEFAULT_CATEGORY_COLORS: Record<string, string> = {
-  Food: "#10b981",
-  "Transport / Fuel": "#3b82f6",
-  "Car Expenses": "#f59e0b",
-  "Loans & Ekub": "#8b5cf6",
-  "Personal & Date": "#ec4899",
-  "Income Stream": "#06b6d4",
-  General: "#64748b",
+  Food: "#B68D4C",
+  "Transport / Fuel": "#5B7C99",
+  "Car Expenses": "#A85C4B",
+  "Loans & Ekub": "#6B5B95",
+  "Personal & Date": "#C97B84",
+  "Income Stream": "#1F4D3D",
+  General: "#8A8578",
 };
+
+/** Ledger-grade typography: a restrained serif for headings, a clean sans
+ * for interface text, and a tabular monospace for every monetary figure —
+ * the way a statement, not a SaaS dashboard, sets numbers. */
+function FontImports() {
+  return (
+    <style jsx global>{`
+      @import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+      .font-display {
+        font-family: "Fraunces", ui-serif, Georgia, serif;
+        font-optical-sizing: auto;
+      }
+      .font-body {
+        font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      }
+      .font-ledger {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.01em;
+      }
+      .eyebrow {
+        font-family: "Inter", ui-sans-serif, sans-serif;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+    `}</style>
+  );
+}
 
 export default function UltimatePlannerApp() {
   // Theme & Auth State
@@ -433,61 +483,100 @@ export default function UltimatePlannerApp() {
     });
   }, [allTransactions, selectedYear]);
 
-  // STYLING CLASSES
+  // STYLING TOKENS — a private-ledger palette: warm ink / bone with a brass accent,
+  // a deep vault-emerald for gains, and a muted clay for outflows.
   const isDark = theme === "dark";
-  const bgClass = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
-  const cardClass = isDark ? "bg-slate-900/90 border-slate-800 shadow-2xl backdrop-blur-2xl" : "bg-white/90 border-slate-200 shadow-xl backdrop-blur-2xl";
-  const inputClass = isDark ? "bg-slate-950/90 border-slate-800 text-slate-100 focus:border-emerald-500" : "bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500";
+  const bgClass = isDark ? "bg-[#0C0E11] text-[#EDE7DA]" : "bg-[#F6F1E7] text-[#232017]";
+  const cardClass = isDark
+    ? "bg-[#14171B]/95 border-x border-b border-[#262A30] border-t-[3px] border-t-[#B68D4C]/70 shadow-[0_25px_60px_-25px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+    : "bg-white/95 border-x border-b border-[#E7DFC9] border-t-[3px] border-t-[#B68D4C] shadow-[0_25px_60px_-30px_rgba(120,95,45,0.3)] backdrop-blur-xl";
+  const inputClass = isDark
+    ? "bg-[#0C0E11]/80 border-[#262A30] text-[#EDE7DA] placeholder:text-[#5B5A54] focus:border-[#B68D4C]"
+    : "bg-[#F6F1E7] border-[#E7DFC9] text-[#232017] placeholder:text-[#9B9482] focus:border-[#B68D4C]";
+  const subtleText = isDark ? "text-[#8B8A82]" : "text-[#7A7462]";
+  const hairline = isDark ? "border-[#262A30]" : "border-[#E7DFC9]";
+  const brassPill = "bg-gradient-to-r from-[#C6A15B] to-[#B68D4C] text-[#14110A] shadow-[0_10px_25px_-8px_rgba(182,141,76,0.55)]";
+  const inactivePill = isDark ? "text-[#8B8A82] hover:text-[#EDE7DA] hover:bg-white/[0.04]" : "text-[#7A7462] hover:text-[#232017] hover:bg-black/[0.03]";
+
+  const NAV_ITEMS: { key: typeof activeTab; label: string; icon: React.ElementType }[] = [
+    { key: "dashboard", label: "Overview", icon: LayoutDashboard },
+    { key: "budgets", label: "Budgets", icon: Target },
+    { key: "goals", label: "Vaults", icon: ShieldCheck },
+    { key: "add", label: "New Entry", icon: PlusCircle },
+    { key: "csv", label: "Import", icon: UploadCloud },
+    { key: "settings", label: "Settings", icon: SettingsIcon },
+  ];
 
   // AUTH LOGGED OUT SCREEN
   if (!user) {
     return (
-      <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4 transition-colors`}>
-        <div className={`${cardClass} border p-8 rounded-3xl max-w-md w-full space-y-6 shadow-2xl relative`}>
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
-              Money Planner
-            </h1>
-            <button onClick={toggleTheme} className={`p-2.5 rounded-2xl border text-xs font-bold ${isDark ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-200 border-slate-300 text-slate-700"}`}>
-              {isDark ? "☀️ Light" : "🌙 Dark"}
-            </button>
-          </div>
+      <div className={`min-h-screen ${bgClass} font-body flex items-center justify-center p-4 transition-colors duration-300 relative overflow-hidden`}>
+        <FontImports />
+        {/* ambient brass glow */}
+        <div className="pointer-events-none absolute -top-40 -right-40 w-[32rem] h-[32rem] rounded-full bg-[#B68D4C]/10 blur-[120px]" />
+        <div className="pointer-events-none absolute -bottom-40 -left-40 w-[32rem] h-[32rem] rounded-full bg-[#1F4D3D]/10 blur-[120px]" />
 
-          <div className={`p-1.5 rounded-2xl border flex gap-1 ${isDark ? "bg-slate-950 border-slate-800" : "bg-slate-200 border-slate-300"}`}>
-            <button onClick={() => { setAuthMode("login"); setAuthMessage(""); }} className={`flex-1 py-2.5 rounded-xl text-xs font-black transition ${authMode === "login" ? "bg-emerald-500 text-slate-950 shadow-md" : "text-slate-400"}`}>
-              Log In
-            </button>
-            <button onClick={() => { setAuthMode("signup"); setAuthMessage(""); }} className={`flex-1 py-2.5 rounded-xl text-xs font-black transition ${authMode === "signup" ? "bg-emerald-500 text-slate-950 shadow-md" : "text-slate-400"}`}>
-              Sign Up
-            </button>
-          </div>
-
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            {authMode === "signup" && (
+        <div className={`${cardClass} border rounded-[28px] max-w-md w-full relative z-10`}>
+          <div className="p-8 space-y-7">
+            <div className="flex justify-between items-start">
               <div>
-                <label className="block text-xs font-bold mb-1.5 text-slate-400">Full Name</label>
-                <input type="text" placeholder="Full Name" value={authName} onChange={(e) => setAuthName(e.target.value)} className={`w-full border rounded-2xl p-3.5 text-sm focus:outline-none ${inputClass}`} required />
+                <p className="eyebrow text-[10px] font-semibold text-[#B68D4C] mb-2">Private Ledger</p>
+                <h1 className="font-display text-3xl font-semibold tracking-tight">
+                  Money Planner
+                </h1>
+                <p className={`text-xs mt-1.5 ${subtleText}`}>Your income, spending and vaults — kept in one place.</p>
               </div>
-            )}
-            <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-400">Email Address</label>
-              <input type="email" placeholder="name@domain.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className={`w-full border rounded-2xl p-3.5 text-sm focus:outline-none ${inputClass}`} required />
-            </div>
-            <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-400">Password</label>
-              <input type="password" placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className={`w-full border rounded-2xl p-3.5 text-sm focus:outline-none ${inputClass}`} required minLength={6} />
+              <button
+                onClick={toggleTheme}
+                aria-label="Toggle theme"
+                className={`p-2.5 rounded-full border transition ${isDark ? "bg-white/5 border-white/10 text-[#C6A15B]" : "bg-black/5 border-black/10 text-[#8A6A2E]"}`}
+              >
+                {isDark ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
             </div>
 
-            {authMessage && (
-              <p className={`text-xs font-bold p-3 rounded-xl text-center border ${authMessage.includes("Error") ? "bg-rose-950/40 border-rose-800 text-rose-400" : "bg-emerald-950/40 border-emerald-800 text-emerald-400"}`}>
-                {authMessage}
-              </p>
-            )}
+            <div className={`p-1 rounded-2xl border flex gap-1 ${isDark ? "bg-black/30 border-white/5" : "bg-black/[0.04] border-black/5"}`}>
+              <button
+                onClick={() => { setAuthMode("login"); setAuthMessage(""); }}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition ${authMode === "login" ? brassPill : inactivePill}`}
+              >
+                Log In
+              </button>
+              <button
+                onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition ${authMode === "signup" ? brassPill : inactivePill}`}
+              >
+                Sign Up
+              </button>
+            </div>
 
-            <button type="submit" className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20">
-              {authMode === "login" ? "Log In" : "Create Account"}
-            </button>
-          </form>
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              {authMode === "signup" && (
+                <div>
+                  <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Full Name</label>
+                  <input type="text" placeholder="Full name" value={authName} onChange={(e) => setAuthName(e.target.value)} className={`w-full border rounded-xl p-3.5 text-sm focus:outline-none transition ${inputClass}`} required />
+                </div>
+              )}
+              <div>
+                <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Email Address</label>
+                <input type="email" placeholder="name@domain.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className={`w-full border rounded-xl p-3.5 text-sm focus:outline-none transition ${inputClass}`} required />
+              </div>
+              <div>
+                <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Password</label>
+                <input type="password" placeholder="••••••••" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className={`w-full border rounded-xl p-3.5 text-sm focus:outline-none transition ${inputClass}`} required minLength={6} />
+              </div>
+
+              {authMessage && (
+                <p className={`text-xs font-medium p-3 rounded-xl text-center border ${authMessage.includes("Error") ? "bg-[#A85C4B]/10 border-[#A85C4B]/30 text-[#D08A7C]" : "bg-[#1F4D3D]/10 border-[#1F4D3D]/40 text-[#5FA98B]"}`}>
+                  {authMessage}
+                </p>
+              )}
+
+              <button type="submit" className={`w-full ${brassPill} font-semibold text-sm py-3.5 rounded-xl transition hover:brightness-105 active:brightness-95 tracking-wide`}>
+                {authMode === "login" ? "Log In" : "Create Account"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -495,70 +584,77 @@ export default function UltimatePlannerApp() {
 
   // MAIN APP INTERFACE
   return (
-    <div className={`min-h-screen ${bgClass} font-sans p-4 md:p-8 max-w-6xl mx-auto space-y-6 transition-colors duration-200`}>
-      {/* HEADER NAVBAR */}
-      <header className={`flex flex-col md:flex-row justify-between items-start md:items-center ${cardClass} border p-6 rounded-3xl gap-4 shadow-xl`}>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
-              Money Planner
-            </h1>
-            <span className={`text-[11px] border px-3 py-1 rounded-full font-extrabold ${isDark ? "bg-slate-800/80 border-slate-700 text-emerald-400" : "bg-slate-100 border-slate-300 text-emerald-600"}`}>
-              $1 = {usdRate} ETB
-            </span>
+    <div className={`min-h-screen ${bgClass} font-body p-3 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6 transition-colors duration-300`}>
+      <FontImports />
+
+      {/* HEADER / LETTERHEAD */}
+      <header className={`${cardClass} border rounded-[28px] p-6`}>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${brassPill}`}>
+              <Wallet size={20} strokeWidth={2.25} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="font-display text-2xl font-semibold tracking-tight">Money Planner</h1>
+                <span className={`font-ledger text-[10px] border px-2.5 py-1 rounded-full font-semibold ${isDark ? "bg-white/[0.04] border-white/10 text-[#C6A15B]" : "bg-black/[0.03] border-black/10 text-[#8A6A2E]"}`}>
+                  $1 = {usdRate} ETB
+                </span>
+              </div>
+              <p className={`text-xs mt-1 ${subtleText}`}>
+                Account holder — <strong className={isDark ? "text-[#EDE7DA]" : "text-[#232017]"}>{user.user_metadata?.display_name || user.email}</strong>
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1 font-medium">
-            Account: <strong className={isDark ? "text-slate-200" : "text-slate-800"}>{user.user_metadata?.display_name || user.email}</strong>
-          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              className={`p-2.5 rounded-full border transition ${isDark ? "bg-white/5 border-white/10 text-[#C6A15B]" : "bg-black/5 border-black/10 text-[#8A6A2E]"}`}
+            >
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button onClick={handleSignOut} className={`flex items-center gap-1.5 px-3.5 py-2.5 border text-xs font-semibold rounded-full transition ${isDark ? "bg-[#A85C4B]/10 hover:bg-[#A85C4B]/20 border-[#A85C4B]/30 text-[#D08A7C]" : "bg-[#A85C4B]/10 hover:bg-[#A85C4B]/20 border-[#A85C4B]/30 text-[#8A4436]"}`}>
+              <LogOut size={13} /> Sign Out
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <button onClick={() => setActiveTab("dashboard")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "dashboard" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
-            Dashboard
-          </button>
-          <button onClick={() => setActiveTab("budgets")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "budgets" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
-            🎯 Budgets
-          </button>
-          <button onClick={() => setActiveTab("goals")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "goals" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
-            🏆 Vaults
-          </button>
-          <button onClick={() => setActiveTab("add")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "add" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
-            + Entry
-          </button>
-          <button onClick={() => setActiveTab("csv")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "csv" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
-            Bulk CSV
-          </button>
-          <button onClick={() => setActiveTab("settings")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "settings" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
-            ⚙️ Settings
-          </button>
-          <button onClick={toggleTheme} className={`px-3 py-2.5 border text-xs rounded-2xl font-bold transition ${isDark ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-200 border-slate-300 text-slate-700"}`}>
-            {isDark ? "☀️ Light" : "🌙 Dark"}
-          </button>
-          <button onClick={handleSignOut} className="px-3.5 py-2.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800/80 text-rose-300 text-xs font-bold rounded-2xl transition">
-            Sign Out
-          </button>
-        </div>
+        {/* NAV — an index of the ledger, not a row of buttons */}
+        <nav className={`flex flex-wrap items-center gap-1.5 mt-6 pt-5 border-t ${hairline}`}>
+          {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full font-semibold text-xs tracking-wide transition ${activeTab === key ? brassPill : inactivePill}`}
+            >
+              <Icon size={14} strokeWidth={2.25} />
+              {label}
+            </button>
+          ))}
+        </nav>
       </header>
 
       {/* DASHBOARD TAB */}
       {activeTab === "dashboard" && (
         <main className="space-y-6">
           {/* TIMEFRAME FILTER BAR */}
-          <div className={`${cardClass} border p-4 rounded-3xl flex flex-wrap justify-between items-center gap-4`}>
-            <div className={`flex items-center p-1.5 rounded-2xl border ${isDark ? "bg-slate-950 border-slate-800" : "bg-slate-200 border-slate-300"}`}>
-              <button onClick={() => setTimeframe("monthly")} className={`px-4 py-2 rounded-xl text-xs font-black transition ${timeframe === "monthly" ? "bg-emerald-500 text-slate-950" : "text-slate-400"}`}>Monthly</button>
-              <button onClick={() => setTimeframe("yearly")} className={`px-4 py-2 rounded-xl text-xs font-black transition ${timeframe === "yearly" ? "bg-emerald-500 text-slate-950" : "text-slate-400"}`}>Yearly</button>
-              <button onClick={() => setTimeframe("all")} className={`px-4 py-2 rounded-xl text-xs font-black transition ${timeframe === "all" ? "bg-emerald-500 text-slate-950" : "text-slate-400"}`}>All Time</button>
+          <div className={`${cardClass} border rounded-[24px] p-4 flex flex-wrap justify-between items-center gap-4`}>
+            <div className={`flex items-center p-1 rounded-2xl border ${isDark ? "bg-black/30 border-white/5" : "bg-black/[0.04] border-black/5"}`}>
+              <button onClick={() => setTimeframe("monthly")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${timeframe === "monthly" ? brassPill : inactivePill}`}>Monthly</button>
+              <button onClick={() => setTimeframe("yearly")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${timeframe === "yearly" ? brassPill : inactivePill}`}>Yearly</button>
+              <button onClick={() => setTimeframe("all")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${timeframe === "all" ? brassPill : inactivePill}`}>All Time</button>
             </div>
 
             {timeframe !== "all" && (
               <div className="flex items-center gap-2">
                 {timeframe === "monthly" && (
-                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className={`border text-xs p-3 rounded-2xl font-bold focus:outline-none ${inputClass}`}>
+                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className={`border text-xs p-3 rounded-xl font-semibold focus:outline-none ${inputClass}`}>
                     <option value="01">January</option><option value="02">February</option><option value="03">March</option><option value="04">April</option><option value="05">May</option><option value="06">June</option><option value="07">July</option><option value="08">August</option><option value="09">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
                   </select>
                 )}
-                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className={`border text-xs p-3 rounded-2xl font-bold focus:outline-none ${inputClass}`}>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className={`border text-xs p-3 rounded-xl font-semibold focus:outline-none ${inputClass}`}>
                   <option value="2025">2025</option><option value="2026">2026</option>
                 </select>
               </div>
@@ -567,41 +663,54 @@ export default function UltimatePlannerApp() {
 
           {/* SUMMARY STATS */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className={`${cardClass} border p-6 rounded-3xl`}>
-              <span className="text-xs uppercase font-black text-slate-400">Total Income</span>
-              <p className="text-3xl font-black text-emerald-400 mt-2">{totalIncome.toLocaleString()} <span className="text-xs font-bold text-slate-400">ETB</span></p>
+            <div className={`${cardClass} border rounded-[24px] p-6`}>
+              <div className="flex items-center justify-between">
+                <span className="eyebrow text-[10px] font-semibold text-[#B68D4C]">Total Income</span>
+                <TrendingUp size={15} className="text-[#1F4D3D]" strokeWidth={2.25} />
+              </div>
+              <p className="font-ledger text-3xl font-semibold mt-3 text-[#3E8368]">
+                {totalIncome.toLocaleString()} <span className={`text-xs font-medium ${subtleText}`}>ETB</span>
+              </p>
             </div>
-            <div className={`${cardClass} border p-6 rounded-3xl`}>
-              <span className="text-xs uppercase font-black text-slate-400">Total Expense</span>
-              <p className="text-3xl font-black text-rose-400 mt-2">{totalExpense.toLocaleString()} <span className="text-xs font-bold text-slate-400">ETB</span></p>
+            <div className={`${cardClass} border rounded-[24px] p-6`}>
+              <div className="flex items-center justify-between">
+                <span className="eyebrow text-[10px] font-semibold text-[#B68D4C]">Total Expense</span>
+                <TrendingDown size={15} className="text-[#A85C4B]" strokeWidth={2.25} />
+              </div>
+              <p className="font-ledger text-3xl font-semibold mt-3 text-[#C17A65]">
+                {totalExpense.toLocaleString()} <span className={`text-xs font-medium ${subtleText}`}>ETB</span>
+              </p>
             </div>
-            <div className={`${cardClass} border p-6 rounded-3xl`}>
-              <span className="text-xs uppercase font-black text-slate-400">Net Balance</span>
-              <p className={`text-3xl font-black mt-2 ${totalIncome - totalExpense >= 0 ? "text-cyan-400" : "text-rose-400"}`}>
-                {(totalIncome - totalExpense).toLocaleString()} <span className="text-xs font-bold text-slate-400">ETB</span>
+            <div className={`${cardClass} border rounded-[24px] p-6`}>
+              <div className="flex items-center justify-between">
+                <span className="eyebrow text-[10px] font-semibold text-[#B68D4C]">Net Balance</span>
+                <Scale size={15} className="text-[#B68D4C]" strokeWidth={2.25} />
+              </div>
+              <p className={`font-ledger text-3xl font-semibold mt-3 ${totalIncome - totalExpense >= 0 ? "text-[#C6A15B]" : "text-[#C17A65]"}`}>
+                {(totalIncome - totalExpense).toLocaleString()} <span className={`text-xs font-medium ${subtleText}`}>ETB</span>
               </p>
             </div>
           </div>
 
-          {/* RESTORED VISUAL CHARTS */}
+          {/* VISUAL CHARTS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* CATEGORY DONUT CHART */}
-            <div className={`${cardClass} border p-6 rounded-3xl flex flex-col justify-between`}>
-              <h2 className={`text-sm font-black mb-4 flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
-                <span>🍩</span> Expense Breakdown
+            <div className={`${cardClass} border rounded-[24px] p-6 flex flex-col justify-between`}>
+              <h2 className="font-display text-base font-semibold mb-4 flex items-center gap-2">
+                <PieChartIcon size={16} className="text-[#B68D4C]" strokeWidth={2.25} /> Expense Breakdown
               </h2>
               {categoryChartData.length === 0 ? (
-                <div className="h-64 flex items-center justify-center text-xs text-slate-500">No expense records found.</div>
+                <div className={`h-64 flex items-center justify-center text-xs ${subtleText}`}>No expense records found.</div>
               ) : (
                 <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={categoryChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value">
                         {categoryChartData.map((entry, idx) => (
-                          <Cell key={`cell-${idx}`} fill={entry.color} />
+                          <Cell key={`cell-${idx}`} fill={entry.color} stroke="none" />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: isDark ? "#0f172a" : "#ffffff", borderColor: "#334155", borderRadius: "16px" }} />
+                      <Tooltip contentStyle={{ backgroundColor: isDark ? "#14171B" : "#ffffff", borderColor: "#B68D4C", borderRadius: "14px", fontFamily: "Inter" }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -609,19 +718,19 @@ export default function UltimatePlannerApp() {
             </div>
 
             {/* MONTHLY COMPARISON BAR CHART */}
-            <div className={`${cardClass} border p-6 rounded-3xl flex flex-col justify-between`}>
-              <h2 className={`text-sm font-black mb-4 flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
-                <span>📊</span> {selectedYear} Income vs Expenses
+            <div className={`${cardClass} border rounded-[24px] p-6 flex flex-col justify-between`}>
+              <h2 className="font-display text-base font-semibold mb-4 flex items-center gap-2">
+                <BarChart3 size={16} className="text-[#B68D4C]" strokeWidth={2.25} /> {selectedYear} Income vs Expenses
               </h2>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={barChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e293b" : "#e2e8f0"} />
-                    <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
-                    <YAxis stroke="#64748b" fontSize={11} />
-                    <Tooltip contentStyle={{ backgroundColor: isDark ? "#0f172a" : "#ffffff", borderColor: "#334155", borderRadius: "16px" }} />
-                    <Bar dataKey="Income" fill="#10b981" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="Expense" fill="#f43f5e" radius={[6, 6, 0, 0]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#262A30" : "#E7DFC9"} vertical={false} />
+                    <XAxis dataKey="month" stroke={isDark ? "#8B8A82" : "#7A7462"} fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke={isDark ? "#8B8A82" : "#7A7462"} fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: isDark ? "#14171B" : "#ffffff", borderColor: "#B68D4C", borderRadius: "14px", fontFamily: "Inter" }} cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }} />
+                    <Bar dataKey="Income" fill="#1F4D3D" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="Expense" fill="#A85C4B" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -629,10 +738,12 @@ export default function UltimatePlannerApp() {
           </div>
 
           {/* BUDGET PROGRESS TRACKERS */}
-          <div className={`${cardClass} border p-6 rounded-3xl space-y-4`}>
+          <div className={`${cardClass} border rounded-[24px] p-6 space-y-4`}>
             <div className="flex justify-between items-center">
-              <h2 className="text-sm font-black flex items-center gap-2"><span>🎯</span> Category Budget Progress</h2>
-              <button onClick={() => setActiveTab("budgets")} className="text-xs text-emerald-400 font-bold hover:underline">Edit Limits &rarr;</button>
+              <h2 className="font-display text-base font-semibold flex items-center gap-2">
+                <Target size={16} className="text-[#B68D4C]" strokeWidth={2.25} /> Category Budget Progress
+              </h2>
+              <button onClick={() => setActiveTab("budgets")} className="text-xs text-[#B68D4C] font-semibold hover:underline">Edit Limits &rarr;</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -640,18 +751,18 @@ export default function UltimatePlannerApp() {
                 const limit = budgets[cat] || 0;
                 const spent = categoryTotals[cat] || 0;
                 const percentage = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
-                const colorClass = percentage >= 100 ? "bg-rose-500" : percentage >= 80 ? "bg-amber-500" : "bg-emerald-500";
+                const barColor = percentage >= 100 ? "bg-[#A85C4B]" : percentage >= 80 ? "bg-[#B68D4C]" : "bg-[#1F4D3D]";
 
                 return (
-                  <div key={cat} className={`p-4 border rounded-2xl space-y-2 ${isDark ? "bg-slate-950/60 border-slate-800" : "bg-slate-100 border-slate-200"}`}>
-                    <div className="flex justify-between items-center text-xs font-bold">
+                  <div key={cat} className={`p-4 border rounded-2xl space-y-2.5 ${isDark ? "bg-black/20 border-white/5" : "bg-black/[0.02] border-black/5"}`}>
+                    <div className="flex justify-between items-center text-xs font-semibold">
                       <span>{cat}</span>
-                      <span className={spent > limit ? "text-rose-400 font-extrabold" : "text-slate-400"}>
+                      <span className={`font-ledger ${spent > limit ? "text-[#C17A65] font-bold" : subtleText}`}>
                         {spent.toLocaleString()} / {limit.toLocaleString()} ETB ({percentage}%)
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
-                      <div className={`h-full ${colorClass} transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
+                    <div className={`w-full rounded-full h-2 overflow-hidden ${isDark ? "bg-white/5" : "bg-black/5"}`}>
+                      <div className={`h-full ${barColor} transition-all duration-500 rounded-full`} style={{ width: `${percentage}%` }}></div>
                     </div>
                   </div>
                 );
@@ -661,16 +772,18 @@ export default function UltimatePlannerApp() {
 
           {/* RECURRING BILLS */}
           {recurringBills.length > 0 && (
-            <div className={`${cardClass} border p-6 rounded-3xl space-y-3`}>
-              <h2 className="text-sm font-black text-amber-400">🔁 Recurring Bills & Subscriptions</h2>
+            <div className={`${cardClass} border rounded-[24px] p-6 space-y-3`}>
+              <h2 className="font-display text-base font-semibold flex items-center gap-2 text-[#B68D4C]">
+                <Repeat size={16} strokeWidth={2.25} /> Recurring Bills &amp; Subscriptions
+              </h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {recurringBills.map((bill) => (
-                  <div key={bill.id} className="p-3.5 border border-amber-800/40 bg-amber-950/20 rounded-2xl flex justify-between items-center">
+                  <div key={bill.id} className={`p-3.5 border rounded-2xl flex justify-between items-center ${isDark ? "border-[#B68D4C]/25 bg-[#B68D4C]/[0.06]" : "border-[#B68D4C]/30 bg-[#B68D4C]/[0.06]"}`}>
                     <div>
-                      <p className="text-xs font-extrabold text-slate-200">{bill.description}</p>
-                      <span className="text-[10px] text-amber-400 font-semibold">{bill.category}</span>
+                      <p className="text-xs font-semibold">{bill.description}</p>
+                      <span className="text-[10px] text-[#B68D4C] font-medium">{bill.category}</span>
                     </div>
-                    <p className="font-black text-sm text-slate-100">{Number(bill.amount_etb).toLocaleString()} ETB</p>
+                    <p className="font-ledger font-semibold text-sm">{Number(bill.amount_etb).toLocaleString()} ETB</p>
                   </div>
                 ))}
               </div>
@@ -678,78 +791,136 @@ export default function UltimatePlannerApp() {
           )}
 
           {/* LEDGER WITH EDIT / DELETE */}
-          <div className={`${cardClass} border rounded-3xl overflow-hidden`}>
-            <div className={`p-5 border-b ${isDark ? "border-slate-800" : "border-slate-200"} flex justify-between items-center`}>
-              <h2 className="text-sm font-black">Cloud Transaction Ledger ({filteredTransactions.length})</h2>
-              {loading && <span className="text-xs text-emerald-400 font-bold animate-pulse">Syncing...</span>}
+          <div className={`${cardClass} border rounded-[24px] overflow-hidden`}>
+            <div className={`p-5 border-b ${hairline} flex justify-between items-center`}>
+              <h2 className="font-display text-base font-semibold">Cloud Transaction Ledger <span className={`font-body font-normal text-sm ${subtleText}`}>({filteredTransactions.length})</span></h2>
+              {loading && <span className="text-xs text-[#B68D4C] font-semibold animate-pulse flex items-center gap-1.5"><Sparkles size={12} /> Syncing...</span>}
             </div>
 
-            <div className={`divide-y ${isDark ? "divide-slate-800/60" : "divide-slate-200"} max-h-96 overflow-y-auto`}>
-              {filteredTransactions.map((tx) => (
-                <div key={tx.id} className="p-4 hover:bg-slate-500/5 transition flex justify-between items-center gap-4 group">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-lg ${tx.type === "income" ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800" : "bg-rose-950/80 text-rose-400 border border-rose-800"}`}>
-                        {tx.type}
-                      </span>
-                      {tx.is_recurring && <span className="text-[10px] bg-amber-950 text-amber-400 border border-amber-800 px-2 py-0.5 rounded-lg font-bold">Recurring</span>}
-                      <span className="text-xs text-slate-400">{tx.date}</span>
-                      <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-lg font-bold">{tx.category}</span>
+            {filteredTransactions.length === 0 ? (
+              <div className={`p-10 text-center text-xs ${subtleText}`}>No entries for this period yet. Add one from New Entry.</div>
+            ) : (
+              <div className={`divide-y ${isDark ? "divide-white/5" : "divide-black/5"} max-h-96 overflow-y-auto`}>
+                {filteredTransactions.map((tx) => (
+                  <div key={tx.id} className={`p-4 pl-5 border-l-2 border-transparent hover:border-l-[#B68D4C] transition flex justify-between items-center gap-4 group ${isDark ? "hover:bg-white/[0.025]" : "hover:bg-black/[0.02]"}`}>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${tx.type === "income" ? "bg-[#1F4D3D]/10 text-[#3E8368] border-[#1F4D3D]/30" : "bg-[#A85C4B]/10 text-[#C17A65] border-[#A85C4B]/30"}`}>
+                          {tx.type}
+                        </span>
+                        {tx.is_recurring && <span className="text-[10px] bg-[#B68D4C]/10 text-[#B68D4C] border border-[#B68D4C]/30 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1"><Repeat size={9} /> Recurring</span>}
+                        <span className={`text-xs ${subtleText}`}>{tx.date}</span>
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${isDark ? "bg-white/5" : "bg-black/5"}`}>{tx.category}</span>
+                      </div>
+                      <p className="text-sm font-semibold truncate">{tx.description}</p>
                     </div>
-                    <p className="text-sm font-extrabold text-slate-200">{tx.description}</p>
-                  </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className={`font-black ${tx.type === "income" ? "text-emerald-400" : "text-slate-200"}`}>
-                        {tx.type === "expense" ? "-" : "+"}{Number(tx.amount_etb).toLocaleString()} ETB
+                    <div className="flex items-center gap-3 shrink-0">
+                      <p className={`font-ledger font-semibold ${tx.type === "income" ? "text-[#3E8368]" : ""}`}>
+                        {tx.type === "expense" ? "−" : "+"}{Number(tx.amount_etb).toLocaleString()} ETB
                       </p>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
-                      <button onClick={() => setEditingTx(tx)} className="p-2 hover:bg-slate-700/40 text-slate-400 hover:text-emerald-400 rounded-xl text-xs">✏️</button>
-                      <button onClick={() => handleDeleteTransaction(tx.id)} className="p-2 hover:bg-slate-700/40 text-slate-400 hover:text-rose-400 rounded-xl text-xs">🗑️</button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                        <button onClick={() => setEditingTx(tx)} aria-label="Edit entry" className={`p-2 rounded-xl transition ${isDark ? "hover:bg-white/5 text-[#8B8A82] hover:text-[#B68D4C]" : "hover:bg-black/5 text-[#7A7462] hover:text-[#B68D4C]"}`}><Pencil size={13} /></button>
+                        <button onClick={() => handleDeleteTransaction(tx.id)} aria-label="Delete entry" className={`p-2 rounded-xl transition ${isDark ? "hover:bg-white/5 text-[#8B8A82] hover:text-[#A85C4B]" : "hover:bg-black/5 text-[#7A7462] hover:text-[#A85C4B]"}`}><Trash2 size={13} /></button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* EDIT TRANSACTION MODAL */}
+          {editingTx && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setEditingTx(null)}>
+              <div className={`${cardClass} border rounded-[24px] max-w-md w-full p-6 space-y-4`} onClick={(e) => e.stopPropagation()}>
+                <h2 className="font-display text-lg font-semibold">Edit Entry</h2>
+                <form onSubmit={handleUpdateTransaction} className="space-y-3.5">
+                  <div>
+                    <label className="eyebrow block text-[10px] font-semibold mb-1 text-[#B68D4C]">Date</label>
+                    <input type="text" value={editingTx.date} onChange={(e) => setEditingTx({ ...editingTx, date: e.target.value })} className={`w-full border rounded-xl p-3 text-sm ${inputClass}`} required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="eyebrow block text-[10px] font-semibold mb-1 text-[#B68D4C]">Type</label>
+                      <select value={editingTx.type} onChange={(e) => setEditingTx({ ...editingTx, type: e.target.value as any })} className={`w-full border rounded-xl p-3 text-sm ${inputClass}`}>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                        <option value="loan">Loan Payment</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="eyebrow block text-[10px] font-semibold mb-1 text-[#B68D4C]">Currency</label>
+                      <select value={editingTx.original_currency} onChange={(e) => setEditingTx({ ...editingTx, original_currency: e.target.value as any })} className={`w-full border rounded-xl p-3 text-sm ${inputClass}`}>
+                        <option value="ETB">ETB</option>
+                        <option value="USD">USD ($)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="eyebrow block text-[10px] font-semibold mb-1 text-[#B68D4C]">Amount</label>
+                    <input type="number" step="any" value={editingTx.original_amount} onChange={(e) => setEditingTx({ ...editingTx, original_amount: parseFloat(e.target.value) || 0 })} className={`w-full border rounded-xl p-3 text-sm font-ledger ${inputClass}`} required />
+                  </div>
+                  <div>
+                    <label className="eyebrow block text-[10px] font-semibold mb-1 text-[#B68D4C]">Category</label>
+                    <select value={editingTx.category} onChange={(e) => setEditingTx({ ...editingTx, category: e.target.value })} className={`w-full border rounded-xl p-3 text-sm ${inputClass}`}>
+                      <option value="Food">Food &amp; Grocery</option>
+                      <option value="Transport / Fuel">Transport / Fuel</option>
+                      <option value="Car Expenses">Car Maintenance</option>
+                      <option value="Loans & Ekub">Loans &amp; Ekub</option>
+                      <option value="Personal & Date">Personal &amp; Dates</option>
+                      <option value="Income Stream">Income Stream</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="eyebrow block text-[10px] font-semibold mb-1 text-[#B68D4C]">Description</label>
+                    <input type="text" value={editingTx.description} onChange={(e) => setEditingTx({ ...editingTx, description: e.target.value })} className={`w-full border rounded-xl p-3 text-sm ${inputClass}`} />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button type="button" onClick={() => setEditingTx(null)} className={`flex-1 py-3 rounded-xl text-xs font-semibold border ${isDark ? "border-white/10 text-[#8B8A82] hover:bg-white/5" : "border-black/10 text-[#7A7462] hover:bg-black/5"}`}>Cancel</button>
+                    <button type="submit" className={`flex-1 ${brassPill} font-semibold text-xs py-3 rounded-xl transition hover:brightness-105`}>Save Changes</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </main>
       )}
 
-      {/* CATEGORY BUDGETS TAB WITH EXPLICIT SAVE BUTTON */}
+      {/* CATEGORY BUDGETS TAB */}
       {activeTab === "budgets" && (
-        <main className={`${cardClass} border p-6 rounded-3xl max-w-2xl mx-auto space-y-6 shadow-2xl`}>
+        <main className={`${cardClass} border rounded-[28px] max-w-2xl mx-auto p-6 space-y-6`}>
           <div>
-            <h2 className="text-lg font-black">🎯 Category Budget Limits</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Set monthly maximum spending thresholds per category.</p>
+            <h2 className="font-display text-lg font-semibold flex items-center gap-2"><Target size={17} className="text-[#B68D4C]" strokeWidth={2.25} /> Category Budget Limits</h2>
+            <p className={`text-xs mt-1 ${subtleText}`}>Set monthly maximum spending thresholds per category.</p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {["Food", "Transport / Fuel", "Car Expenses", "Personal & Date", "General"].map((cat) => (
-              <div key={cat} className={`p-4 border rounded-2xl flex justify-between items-center gap-4 ${isDark ? "bg-slate-950/80 border-slate-800" : "bg-slate-100 border-slate-200"}`}>
-                <span className="text-sm font-bold text-slate-200">{cat}</span>
+              <div key={cat} className={`p-4 border rounded-2xl flex justify-between items-center gap-4 ${isDark ? "bg-black/20 border-white/5" : "bg-black/[0.02] border-black/5"}`}>
+                <span className="text-sm font-semibold">{cat}</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
                     value={tempBudgets[cat] ?? 0}
                     onChange={(e) => setTempBudgets({ ...tempBudgets, [cat]: parseFloat(e.target.value) || 0 })}
-                    className={`w-36 border rounded-xl p-2.5 text-xs font-bold text-right focus:outline-none ${inputClass}`}
+                    className={`w-36 border rounded-xl p-2.5 text-xs font-ledger text-right focus:outline-none ${inputClass}`}
                   />
-                  <span className="text-xs font-bold text-slate-400">ETB</span>
+                  <span className={`text-xs font-semibold ${subtleText}`}>ETB</span>
                 </div>
               </div>
             ))}
           </div>
 
           {budgetSaveMessage && (
-            <p className="text-xs text-center font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 p-3 rounded-2xl">
+            <p className="text-xs text-center font-semibold text-[#3E8368] bg-[#1F4D3D]/10 border border-[#1F4D3D]/30 p-3 rounded-2xl">
               {budgetSaveMessage}
             </p>
           )}
 
-          <button onClick={handleSaveAllBudgets} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20">
-            💾 Save All Budgets
+          <button onClick={handleSaveAllBudgets} className={`w-full ${brassPill} font-semibold text-sm py-3.5 rounded-xl transition hover:brightness-105 flex items-center justify-center gap-2`}>
+            <Save size={15} strokeWidth={2.25} /> Save All Budgets
           </button>
         </main>
       )}
@@ -757,61 +928,65 @@ export default function UltimatePlannerApp() {
       {/* SAVINGS VAULTS / GOALS TAB */}
       {activeTab === "goals" && (
         <main className="space-y-6 max-w-4xl mx-auto">
-          <div className={`${cardClass} border p-6 rounded-3xl space-y-4 shadow-2xl`}>
-            <h2 className="text-lg font-black">🏆 Create Savings Vault</h2>
+          <div className={`${cardClass} border rounded-[28px] p-6 space-y-4`}>
+            <h2 className="font-display text-lg font-semibold flex items-center gap-2"><ShieldCheck size={17} className="text-[#B68D4C]" strokeWidth={2.25} /> Create Savings Vault</h2>
             <form onSubmit={handleAddGoal} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input type="text" placeholder="Goal Title (e.g. New PC)" value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} className={`border rounded-xl p-3 text-xs font-bold ${inputClass}`} required />
-              <input type="number" placeholder="Target Amount (ETB)" value={goalTarget} onChange={(e) => setGoalTarget(e.target.value)} className={`border rounded-xl p-3 text-xs font-bold ${inputClass}`} required />
-              <button type="submit" className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs py-3 transition">Create Vault</button>
+              <input type="text" placeholder="Vault title (e.g. New PC)" value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} className={`border rounded-xl p-3 text-xs font-semibold ${inputClass}`} required />
+              <input type="number" placeholder="Target amount (ETB)" value={goalTarget} onChange={(e) => setGoalTarget(e.target.value)} className={`border rounded-xl p-3 text-xs font-semibold font-ledger ${inputClass}`} required />
+              <button type="submit" className={`${brassPill} font-semibold rounded-xl text-xs py-3 transition hover:brightness-105`}>Create Vault</button>
             </form>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {goals.map((goal) => {
-              const progress = Math.min(Math.round((goal.current_amount / goal.target_amount) * 100), 100);
-              return (
-                <div key={goal.id} className={`${cardClass} border p-6 rounded-3xl space-y-4`}>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-base font-black text-slate-100">{goal.title}</h3>
-                      <p className="text-xs text-slate-400">{goal.current_amount.toLocaleString()} / {goal.target_amount.toLocaleString()} ETB</p>
+          {goals.length === 0 ? (
+            <div className={`${cardClass} border rounded-[28px] p-10 text-center text-xs ${subtleText}`}>No vaults yet — create one above to start setting money aside.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {goals.map((goal) => {
+                const progress = Math.min(Math.round((goal.current_amount / goal.target_amount) * 100), 100);
+                return (
+                  <div key={goal.id} className={`${cardClass} border rounded-[24px] p-6 space-y-4`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-display text-base font-semibold">{goal.title}</h3>
+                        <p className={`font-ledger text-xs mt-0.5 ${subtleText}`}>{goal.current_amount.toLocaleString()} / {goal.target_amount.toLocaleString()} ETB</p>
+                      </div>
+                      <span className="font-ledger text-xs font-bold text-[#B68D4C] bg-[#B68D4C]/10 border border-[#B68D4C]/30 px-2.5 py-1 rounded-full">{progress}%</span>
                     </div>
-                    <span className="text-xs font-black text-cyan-400 bg-cyan-950 border border-cyan-800 px-2.5 py-1 rounded-full">{progress}%</span>
-                  </div>
 
-                  <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
-                    <div className="h-full bg-cyan-400 transition-all duration-500" style={{ width: `${progress}%` }}></div>
-                  </div>
-
-                  {goalDeposit?.id === goal.id ? (
-                    <div className="flex gap-2">
-                      <input type="number" placeholder="Deposit Amount" value={goalDeposit.amount} onChange={(e) => setGoalDeposit({ id: goal.id, amount: e.target.value })} className={`flex-1 border rounded-xl p-2 text-xs ${inputClass}`} />
-                      <button onClick={() => handleDepositGoal(goal.id, goalDeposit.amount)} className="bg-emerald-500 text-slate-950 font-black px-3 rounded-xl text-xs">Save</button>
+                    <div className={`w-full rounded-full h-2 overflow-hidden ${isDark ? "bg-white/5" : "bg-black/5"}`}>
+                      <div className="h-full bg-gradient-to-r from-[#C6A15B] to-[#B68D4C] transition-all duration-500 rounded-full" style={{ width: `${progress}%` }}></div>
                     </div>
-                  ) : (
-                    <button onClick={() => setGoalDeposit({ id: goal.id, amount: "" })} className="w-full border border-slate-700 hover:bg-slate-800 text-xs font-bold py-2 rounded-xl text-slate-300">
-                      + Add Funds
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+
+                    {goalDeposit?.id === goal.id ? (
+                      <div className="flex gap-2">
+                        <input type="number" placeholder="Deposit amount" value={goalDeposit.amount} onChange={(e) => setGoalDeposit({ id: goal.id, amount: e.target.value })} className={`flex-1 border rounded-xl p-2.5 text-xs font-ledger ${inputClass}`} autoFocus />
+                        <button onClick={() => handleDepositGoal(goal.id, goalDeposit.amount)} className={`${brassPill} font-semibold px-4 rounded-xl text-xs transition hover:brightness-105`}>Save</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setGoalDeposit({ id: goal.id, amount: "" })} className={`w-full border text-xs font-semibold py-2.5 rounded-xl transition ${isDark ? "border-white/10 hover:bg-white/5 text-[#EDE7DA]" : "border-black/10 hover:bg-black/5 text-[#232017]"}`}>
+                        + Add Funds
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </main>
       )}
 
       {/* ADD ENTRY TAB */}
       {activeTab === "add" && (
-        <main className={`${cardClass} border p-6 rounded-3xl max-w-lg mx-auto space-y-4 shadow-2xl`}>
-          <h2 className="text-lg font-black">New Transaction Entry</h2>
+        <main className={`${cardClass} border rounded-[28px] max-w-lg mx-auto p-6 space-y-5`}>
+          <h2 className="font-display text-lg font-semibold flex items-center gap-2"><PlusCircle size={17} className="text-[#B68D4C]" strokeWidth={2.25} /> New Transaction Entry</h2>
           <form onSubmit={handleAddManual} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold mb-1 text-slate-400">Date</label>
+              <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Date</label>
               <input type="text" value={formDate} onChange={(e) => setFormDate(e.target.value)} className={`w-full border rounded-2xl p-3.5 text-sm ${inputClass}`} required />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold mb-1 text-slate-400">Type</label>
+                <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Type</label>
                 <select value={formType} onChange={(e) => setFormType(e.target.value as any)} className={`w-full border rounded-2xl p-3.5 text-sm ${inputClass}`}>
                   <option value="expense">Expense</option>
                   <option value="income">Income</option>
@@ -819,7 +994,7 @@ export default function UltimatePlannerApp() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold mb-1 text-slate-400">Currency</label>
+                <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Currency</label>
                 <select value={formCurrency} onChange={(e) => setFormCurrency(e.target.value as any)} className={`w-full border rounded-2xl p-3.5 text-sm ${inputClass}`}>
                   <option value="ETB">ETB</option>
                   <option value="USD">USD ($)</option>
@@ -827,32 +1002,32 @@ export default function UltimatePlannerApp() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold mb-1 text-slate-400">Amount</label>
-              <input type="number" step="any" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} placeholder="0.00" className={`w-full border rounded-2xl p-3.5 text-sm ${inputClass}`} required />
+              <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Amount</label>
+              <input type="number" step="any" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} placeholder="0.00" className={`w-full border rounded-2xl p-3.5 text-sm font-ledger ${inputClass}`} required />
             </div>
             <div>
-              <label className="block text-xs font-bold mb-1 text-slate-400">Category</label>
+              <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Category</label>
               <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className={`w-full border rounded-2xl p-3.5 text-sm ${inputClass}`}>
-                <option value="Food">Food & Grocery</option>
+                <option value="Food">Food &amp; Grocery</option>
                 <option value="Transport / Fuel">Transport / Fuel</option>
                 <option value="Car Expenses">Car Maintenance</option>
-                <option value="Loans & Ekub">Loans & Ekub</option>
-                <option value="Personal & Date">Personal & Dates</option>
+                <option value="Loans & Ekub">Loans &amp; Ekub</option>
+                <option value="Personal & Date">Personal &amp; Dates</option>
                 <option value="Income Stream">Income Stream</option>
                 <option value="General">General</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold mb-1 text-slate-400">Description</label>
+              <label className="eyebrow block text-[10px] font-semibold mb-1.5 text-[#B68D4C]">Description</label>
               <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Description" className={`w-full border rounded-2xl p-3.5 text-sm ${inputClass}`} />
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              <input type="checkbox" id="recurring" checked={formIsRecurring} onChange={(e) => setFormIsRecurring(e.target.checked)} className="rounded" />
-              <label htmlFor="recurring" className="text-xs font-bold text-slate-300 cursor-pointer">Make this a recurring monthly bill</label>
-            </div>
+            <label htmlFor="recurring" className={`flex items-center gap-2.5 pt-1 cursor-pointer select-none p-3 rounded-xl border ${isDark ? "border-white/5 bg-black/20 hover:bg-black/30" : "border-black/5 bg-black/[0.02] hover:bg-black/[0.04]"} transition`}>
+              <input type="checkbox" id="recurring" checked={formIsRecurring} onChange={(e) => setFormIsRecurring(e.target.checked)} className="rounded accent-[#B68D4C] w-4 h-4" />
+              <span className="text-xs font-semibold flex items-center gap-1.5"><Repeat size={12} className="text-[#B68D4C]" /> Make this a recurring monthly bill</span>
+            </label>
 
-            <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20">
+            <button type="submit" className={`w-full ${brassPill} font-semibold py-4 rounded-2xl transition hover:brightness-105`}>
               Save Entry
             </button>
           </form>
@@ -861,23 +1036,24 @@ export default function UltimatePlannerApp() {
 
       {/* CSV BULK IMPORT TAB */}
       {activeTab === "csv" && (
-        <main className={`${cardClass} border p-6 rounded-3xl max-w-2xl mx-auto space-y-6 shadow-2xl`}>
+        <main className={`${cardClass} border rounded-[28px] max-w-2xl mx-auto p-6 space-y-6`}>
           <div>
-            <h2 className="text-lg font-black">Bulk CSV Import</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Pick a `.csv` file directly from your device or paste raw CSV lines.</p>
+            <h2 className="font-display text-lg font-semibold flex items-center gap-2"><UploadCloud size={17} className="text-[#B68D4C]" strokeWidth={2.25} /> Bulk CSV Import</h2>
+            <p className={`text-xs mt-1 ${subtleText}`}>Pick a <code className="font-ledger">.csv</code> file directly from your device or paste raw CSV lines.</p>
           </div>
 
-          <div className={`p-6 border border-dashed rounded-3xl flex flex-col items-center justify-center text-center gap-2 ${isDark ? "bg-slate-950/80 border-slate-800" : "bg-slate-100/80 border-slate-300"}`}>
-            <p className="text-xs font-bold text-slate-400">Select `.csv` file from your device</p>
-            <input type="file" accept=".csv" onChange={handleFileUpload} className="text-xs text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-emerald-500 file:text-slate-950 hover:file:bg-emerald-400 cursor-pointer" />
+          <div className={`p-8 border border-dashed rounded-[24px] flex flex-col items-center justify-center text-center gap-3 ${isDark ? "bg-black/20 border-white/10" : "bg-black/[0.02] border-black/10"}`}>
+            <UploadCloud size={22} className="text-[#B68D4C]" strokeWidth={1.75} />
+            <p className={`text-xs font-semibold ${subtleText}`}>Select a <code className="font-ledger">.csv</code> file from your device</p>
+            <input type="file" accept=".csv" onChange={handleFileUpload} className={`text-xs file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:cursor-pointer file:bg-[#B68D4C] file:text-[#14110A] hover:file:bg-[#C6A15B] cursor-pointer ${subtleText}`} />
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-slate-400">CSV Text Preview / Raw Input</label>
-            <textarea value={csvContent} onChange={(e) => setCsvContent(e.target.value)} placeholder={`Date,Type,Amount,Currency,Category,Description\n2026-07-01,income,15000,ETB,Income Stream,Salary Payment`} className={`w-full h-48 border rounded-2xl p-4 text-xs font-mono focus:outline-none ${inputClass}`}></textarea>
+          <div className="space-y-1.5">
+            <label className={`eyebrow block text-[10px] font-semibold ${subtleText}`}>CSV Text Preview / Raw Input</label>
+            <textarea value={csvContent} onChange={(e) => setCsvContent(e.target.value)} placeholder={`Date,Type,Amount,Currency,Category,Description\n2026-07-01,income,15000,ETB,Income Stream,Salary Payment`} className={`w-full h-48 border rounded-2xl p-4 text-xs font-ledger focus:outline-none ${inputClass}`}></textarea>
           </div>
 
-          <button onClick={handleCustomCsvImport} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20">
+          <button onClick={handleCustomCsvImport} className={`w-full ${brassPill} font-semibold py-4 rounded-2xl transition hover:brightness-105`}>
             Process CSV Import
           </button>
         </main>
@@ -885,22 +1061,22 @@ export default function UltimatePlannerApp() {
 
       {/* SETTINGS TAB */}
       {activeTab === "settings" && (
-        <main className={`${cardClass} border p-6 rounded-3xl max-w-2xl mx-auto space-y-6 shadow-2xl`}>
-          <h2 className="text-lg font-black">⚙️ Advanced Settings</h2>
+        <main className={`${cardClass} border rounded-[28px] max-w-2xl mx-auto p-6 space-y-6`}>
+          <h2 className="font-display text-lg font-semibold flex items-center gap-2"><SettingsIcon size={17} className="text-[#B68D4C]" strokeWidth={2.25} /> Advanced Settings</h2>
 
-          <div className="space-y-4 divide-y divide-slate-800">
-            <div className="pt-2 flex justify-between items-center">
+          <div className={`space-y-4 divide-y ${isDark ? "divide-white/5" : "divide-black/5"}`}>
+            <div className="pt-2 flex justify-between items-center gap-4">
               <div>
-                <p className="text-sm font-bold">User Account</p>
-                <p className="text-xs text-slate-400">{user.email}</p>
+                <p className="text-sm font-semibold">User Account</p>
+                <p className={`text-xs ${subtleText}`}>{user.email}</p>
               </div>
-              <span className="text-xs bg-emerald-950 text-emerald-400 border border-emerald-800 px-3 py-1 rounded-full font-bold">Active</span>
+              <span className="text-xs bg-[#1F4D3D]/10 text-[#3E8368] border border-[#1F4D3D]/30 px-3 py-1 rounded-full font-semibold shrink-0">Active</span>
             </div>
 
-            <div className="pt-4 flex justify-between items-center">
+            <div className="pt-4 flex justify-between items-center gap-4">
               <div>
-                <p className="text-sm font-bold">USD Exchange Rate (ETB)</p>
-                <p className="text-xs text-slate-400">Adjust custom exchange conversion rate</p>
+                <p className="text-sm font-semibold">USD Exchange Rate (ETB)</p>
+                <p className={`text-xs ${subtleText}`}>Adjust custom exchange conversion rate</p>
               </div>
               <input
                 type="number"
@@ -910,17 +1086,17 @@ export default function UltimatePlannerApp() {
                   setUsdRate(val);
                   localStorage.setItem("fp_usd_rate", val.toString());
                 }}
-                className={`w-28 border rounded-xl p-2.5 text-xs font-bold text-right ${inputClass}`}
+                className={`w-28 border rounded-xl p-2.5 text-xs font-ledger text-right ${inputClass}`}
               />
             </div>
 
-            <div className="pt-4 space-y-2">
+            <div className="pt-4 space-y-3">
               <div>
-                <p className="text-sm font-bold text-rose-400">Clear All Transaction Data</p>
-                <p className="text-xs text-slate-400">Permanently delete all transaction entries linked to your cloud account.</p>
+                <p className="text-sm font-semibold text-[#C17A65]">Clear All Transaction Data</p>
+                <p className={`text-xs ${subtleText}`}>Permanently delete all transaction entries linked to your cloud account.</p>
               </div>
-              <button onClick={handleClearAllData} className="w-full bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 font-black py-3 rounded-2xl transition">
-                🗑️ Clear All Cloud Data
+              <button onClick={handleClearAllData} className="w-full bg-[#A85C4B]/10 hover:bg-[#A85C4B]/20 border border-[#A85C4B]/30 text-[#C17A65] font-semibold py-3 rounded-2xl transition flex items-center justify-center gap-2">
+                <Trash2 size={14} /> Clear All Cloud Data
               </button>
             </div>
           </div>
