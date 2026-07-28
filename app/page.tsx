@@ -40,24 +40,23 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function ReusableTracker() {
+  // Theme State (Dark / Light)
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
   // Supabase Auth State
   const [user, setUser] = useState<User | null>(null);
-
-  // Form Registration State
-  const [regName, setRegName] = useState("");
-  const [regEmail, setRegEmail] = useState("");
-  const [regPassword, setRegPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
 
-  // Existing Users List State (for quick switching)
-  const [users, setUsers] = useState<any[]>([]);
-
-  // Main Data State
+  // Data State
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"dashboard" | "add" | "csv">("dashboard");
 
-  // Filter States
+  // Filters
   const [timeframe, setTimeframe] = useState<"monthly" | "yearly" | "all">("monthly");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("07");
@@ -71,7 +70,21 @@ export default function ReusableTracker() {
   const [formDescription, setFormDescription] = useState<string>("");
   const [csvContent, setCsvContent] = useState<string>("");
 
-  // Check Supabase Auth state on load
+  // Load Saved Theme Preference
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("ft_theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    localStorage.setItem("ft_theme", nextTheme);
+  };
+
+  // Check Supabase Auth State
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
@@ -84,15 +97,7 @@ export default function ReusableTracker() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load local profiles list if present
-  useEffect(() => {
-    const savedUsers = localStorage.getItem("ft_users");
-    if (savedUsers) {
-      try { setUsers(JSON.parse(savedUsers)); } catch (e) {}
-    }
-  }, []);
-
-  // Fetch live Cloud Transactions when user logs in
+  // Fetch Transactions from Supabase
   useEffect(() => {
     if (user) {
       fetchCloudTransactions(user.id);
@@ -115,40 +120,63 @@ export default function ReusableTracker() {
     setLoading(false);
   };
 
-  // Updated Registration Function (talks to Supabase Auth)
-  const handleRegister = async (e: React.FormEvent) => {
+  // Auth Submit Handler (Supports both Login & Signup)
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName || !regEmail || !regPassword) return;
+    setAuthMessage("");
 
-    setAuthMessage("Sending verification email...");
+    if (authMode === "signup") {
+      setAuthMessage("Signing up...");
+      const { data, error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+        options: {
+          data: {
+            display_name: authName || authEmail.split("@")[0],
+          },
+        },
+      });
 
-    const { data, error } = await supabase.auth.signUp({
-      email: regEmail,
-      password: regPassword,
-      options: {
-        data: {
-          display_name: regName,
-        }
+      if (error) {
+        setAuthMessage("Error: " + error.message);
+      } else {
+        setAuthMessage("Success! Check your email for confirmation or log in.");
+        setAuthPassword("");
       }
-    });
-
-    if (error) {
-      setAuthMessage("Error: " + error.message);
     } else {
-      setAuthMessage("Success! Check your email for the confirmation link.");
-      setRegPassword(""); // Clear password field for safety
+      setAuthMessage("Logging in...");
+      const { error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword,
+      });
 
-      // Cache locally for convenience list
-      const newUser = { id: data.user?.id || Date.now().toString(), name: regName, email: regEmail };
-      const updated = [...users, newUser];
-      setUsers(updated);
-      localStorage.setItem("ft_users", JSON.stringify(updated));
+      if (error) {
+        setAuthMessage("Error: " + error.message);
+      } else {
+        setAuthMessage("");
+        setAuthPassword("");
+      }
     }
   };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setAllTransactions([]);
+  };
+
+  // Device CSV File Upload Handler
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (text) {
+        setCsvContent(text);
+      }
+    };
+    reader.readAsText(file);
   };
 
   // Calculations & Aggregations
@@ -287,51 +315,85 @@ export default function ReusableTracker() {
     a.click();
   };
 
-  // Registration & Auth UI Screen (When logged out)
+  // Dynamic Theme Styling Classes
+  const isDark = theme === "dark";
+  const bgClass = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-900";
+  const cardClass = isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm";
+  const inputClass = isDark ? "bg-slate-950 border-slate-800 text-slate-100" : "bg-slate-50 border-slate-300 text-slate-900";
+
+  // Login / Signup Screen (Logged Out)
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md w-full space-y-6 shadow-2xl">
-          <div className="text-center">
-            <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+      <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4`}>
+        <div className={`${cardClass} border p-8 rounded-2xl max-w-md w-full space-y-6 shadow-2xl`}>
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
               Financial Hub
             </h1>
-            <p className="text-slate-400 text-sm mt-1">Create an account or select profile</p>
+            <button
+              onClick={toggleTheme}
+              className={`p-2 rounded-xl border text-xs font-semibold ${isDark ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-200 border-slate-300 text-slate-700"}`}
+            >
+              {isDark ? "☀️ Light Mode" : "🌙 Dark Mode"}
+            </button>
           </div>
 
-          <form onSubmit={handleRegister} className="space-y-4 pt-4 border-t border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-300">Create New Profile</h2>
-            <input
-              type="text"
-              placeholder="Full Name"
-              value={regName}
-              onChange={(e) => setRegName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none"
-              required
-            />
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={regEmail}
-              onChange={(e) => setRegEmail(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none"
-              required
-            />
+          {/* Login / Sign Up Toggle Switch */}
+          <div className={`p-1 rounded-xl border flex gap-1 ${isDark ? "bg-slate-950 border-slate-800" : "bg-slate-200 border-slate-300"}`}>
+            <button
+              onClick={() => { setAuthMode("login"); setAuthMessage(""); }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${authMode === "login" ? "bg-emerald-500 text-slate-950" : isDark ? "text-slate-400" : "text-slate-600"}`}
+            >
+              Log In
+            </button>
+            <button
+              onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${authMode === "signup" ? "bg-emerald-500 text-slate-950" : isDark ? "text-slate-400" : "text-slate-600"}`}
+            >
+              Sign Up
+            </button>
+          </div>
 
-            {/* --- PASSWORD FIELD --- */}
-            <input
-              type="password"
-              placeholder="Create a Password"
-              value={regPassword}
-              onChange={(e) => setRegPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none"
-              required
-              minLength={6}
-            />
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {authMode === "signup" && (
+              <div>
+                <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Full Name</label>
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                  className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`}
+                  required
+                />
+              </div>
+            )}
+            <div>
+              <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Email Address</label>
+              <input
+                type="email"
+                placeholder="name@domain.com"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`}
+                required
+              />
+            </div>
+            <div>
+              <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Password</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`}
+                required
+                minLength={6}
+              />
+            </div>
 
-            {/* --- MESSAGE DISPLAY --- */}
             {authMessage && (
-              <p className={`text-xs font-semibold ${authMessage.includes("Error") ? "text-rose-400" : "text-emerald-400"}`}>
+              <p className={`text-xs font-semibold p-2.5 rounded-lg text-center border ${authMessage.includes("Error") ? "bg-rose-950/40 border-rose-800 text-rose-400" : "bg-emerald-950/40 border-emerald-800 text-emerald-400"}`}>
                 {authMessage}
               </p>
             )}
@@ -340,7 +402,7 @@ export default function ReusableTracker() {
               type="submit"
               className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/20"
             >
-              Start Tracking
+              {authMode === "login" ? "Log In" : "Create Account"}
             </button>
           </form>
         </div>
@@ -348,21 +410,21 @@ export default function ReusableTracker() {
     );
   }
 
-  // Dashboard Interface (When logged in)
+  // Main Dashboard Interface (Logged In)
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-8 max-w-6xl mx-auto space-y-6">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl gap-4">
+    <div className={`min-h-screen ${bgClass} font-sans p-4 md:p-8 max-w-6xl mx-auto space-y-6 transition-colors duration-200`}>
+      <header className={`flex flex-col md:flex-row justify-between items-start md:items-center ${cardClass} border p-5 rounded-2xl gap-4`}>
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
               Financial Hub
             </h1>
-            <span className="text-xs bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1 rounded-full font-semibold">
+            <span className={`text-xs border px-2.5 py-1 rounded-full font-semibold ${isDark ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-100 border-slate-300 text-slate-700"}`}>
               $1 = 180 ETB
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Logged in as <strong className="text-slate-200">{user.user_metadata?.display_name || user.email}</strong>
+          <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            Logged in as <strong className={isDark ? "text-slate-200" : "text-slate-800"}>{user.user_metadata?.display_name || user.email}</strong>
           </p>
         </div>
 
@@ -370,7 +432,7 @@ export default function ReusableTracker() {
           <button
             onClick={() => setActiveTab("dashboard")}
             className={`px-4 py-2 rounded-xl font-medium text-xs transition ${
-              activeTab === "dashboard" ? "bg-emerald-500 text-slate-950 font-bold" : "bg-slate-800/80 text-slate-300 hover:bg-slate-800"
+              activeTab === "dashboard" ? "bg-emerald-500 text-slate-950 font-bold" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"
             }`}
           >
             Dashboard
@@ -378,7 +440,7 @@ export default function ReusableTracker() {
           <button
             onClick={() => setActiveTab("add")}
             className={`px-4 py-2 rounded-xl font-medium text-xs transition ${
-              activeTab === "add" ? "bg-emerald-500 text-slate-950 font-bold" : "bg-slate-800/80 text-slate-300 hover:bg-slate-800"
+              activeTab === "add" ? "bg-emerald-500 text-slate-950 font-bold" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"
             }`}
           >
             + Entry
@@ -386,10 +448,16 @@ export default function ReusableTracker() {
           <button
             onClick={() => setActiveTab("csv")}
             className={`px-4 py-2 rounded-xl font-medium text-xs transition ${
-              activeTab === "csv" ? "bg-emerald-500 text-slate-950 font-bold" : "bg-slate-800/80 text-slate-300 hover:bg-slate-800"
+              activeTab === "csv" ? "bg-emerald-500 text-slate-950 font-bold" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"
             }`}
           >
             Bulk CSV
+          </button>
+          <button
+            onClick={toggleTheme}
+            className={`px-3 py-2 border text-xs rounded-xl transition ${isDark ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-200 border-slate-300 text-slate-700"}`}
+          >
+            {isDark ? "☀️ Light" : "🌙 Dark"}
           </button>
           <button
             onClick={handleSignOut}
@@ -402,8 +470,8 @@ export default function ReusableTracker() {
 
       {activeTab === "dashboard" && (
         <main className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-4">
-            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <div className={`${cardClass} border p-4 rounded-2xl flex flex-wrap justify-between items-center gap-4`}>
+            <div className={`flex items-center p-1 rounded-xl border ${isDark ? "bg-slate-950 border-slate-800" : "bg-slate-100 border-slate-300"}`}>
               <button
                 onClick={() => setTimeframe("monthly")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
@@ -436,7 +504,7 @@ export default function ReusableTracker() {
                   <select
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 text-xs text-slate-200 p-2 rounded-xl focus:outline-none"
+                    className={`border text-xs p-2 rounded-xl focus:outline-none ${inputClass}`}
                   >
                     <option value="01">January</option>
                     <option value="02">February</option>
@@ -455,7 +523,7 @@ export default function ReusableTracker() {
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 text-xs text-slate-200 p-2 rounded-xl focus:outline-none"
+                  className={`border text-xs p-2 rounded-xl focus:outline-none ${inputClass}`}
                 >
                   <option value="2025">2025</option>
                   <option value="2026">2026</option>
@@ -465,18 +533,18 @@ export default function ReusableTracker() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
-              <span className="text-xs text-slate-400 uppercase font-semibold">Total Income</span>
+            <div className={`${cardClass} border p-5 rounded-2xl`}>
+              <span className={`text-xs uppercase font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Total Income</span>
               <p className="text-3xl font-extrabold text-emerald-400 mt-2">{totalIncome.toLocaleString()} <span className="text-sm font-normal">ETB</span></p>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
-              <span className="text-xs text-slate-400 uppercase font-semibold">Total Expense</span>
+            <div className={`${cardClass} border p-5 rounded-2xl`}>
+              <span className={`text-xs uppercase font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Total Expense</span>
               <p className="text-3xl font-extrabold text-rose-400 mt-2">{totalExpense.toLocaleString()} <span className="text-sm font-normal">ETB</span></p>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
-              <span className="text-xs text-slate-400 uppercase font-semibold">Net Balance</span>
+            <div className={`${cardClass} border p-5 rounded-2xl`}>
+              <span className={`text-xs uppercase font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Net Balance</span>
               <p className={`text-3xl font-extrabold mt-2 ${totalIncome - totalExpense >= 0 ? "text-cyan-400" : "text-rose-400"}`}>
                 {(totalIncome - totalExpense).toLocaleString()} <span className="text-sm font-normal">ETB</span>
               </p>
@@ -484,8 +552,8 @@ export default function ReusableTracker() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
-              <h2 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className={`${cardClass} border p-5 rounded-2xl flex flex-col justify-between`}>
+              <h2 className={`text-sm font-bold mb-4 flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
                 <span>🍩</span> Expense Breakdown
               </h2>
               {categoryChartData.length === 0 ? (
@@ -499,24 +567,24 @@ export default function ReusableTracker() {
                           <Cell key={`cell-${idx}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px" }} />
+                      <Tooltip contentStyle={{ backgroundColor: isDark ? "#0f172a" : "#ffffff", borderColor: "#334155", borderRadius: "12px" }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
-              <h2 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className={`${cardClass} border p-5 rounded-2xl flex flex-col justify-between`}>
+              <h2 className={`text-sm font-bold mb-4 flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
                 <span>📊</span> {selectedYear} Income vs Expenses
               </h2>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={barChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e293b" : "#e2e8f0"} />
                     <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
                     <YAxis stroke="#64748b" fontSize={11} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px" }} />
+                    <Tooltip contentStyle={{ backgroundColor: isDark ? "#0f172a" : "#ffffff", borderColor: "#334155", borderRadius: "12px" }} />
                     <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="Expense" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -525,18 +593,18 @@ export default function ReusableTracker() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-            <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-              <h2 className="text-sm font-bold text-slate-200">Cloud Ledger ({filteredTransactions.length})</h2>
+          <div className={`${cardClass} border rounded-2xl overflow-hidden`}>
+            <div className={`p-4 border-b ${isDark ? "border-slate-800" : "border-slate-200"} flex justify-between items-center`}>
+              <h2 className={`text-sm font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>Cloud Ledger ({filteredTransactions.length})</h2>
               {loading && <span className="text-xs text-emerald-400">Syncing...</span>}
             </div>
 
-            <div className="divide-y divide-slate-800/60 max-h-96 overflow-y-auto">
+            <div className={`divide-y ${isDark ? "divide-slate-800/60" : "divide-slate-200"} max-h-96 overflow-y-auto`}>
               {filteredTransactions.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500">No cloud records found.</div>
               ) : (
                 filteredTransactions.map((tx) => (
-                  <div key={tx.id} className="p-4 hover:bg-slate-800/30 transition flex justify-between items-center gap-4">
+                  <div key={tx.id} className="p-4 hover:bg-slate-500/5 transition flex justify-between items-center gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-md ${
@@ -544,13 +612,13 @@ export default function ReusableTracker() {
                         }`}>
                           {tx.type}
                         </span>
-                        <span className="text-xs text-slate-400">{tx.date}</span>
-                        <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">{tx.category}</span>
+                        <span className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{tx.date}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-md ${isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>{tx.category}</span>
                       </div>
-                      <p className="text-sm text-slate-200 font-medium">{tx.description}</p>
+                      <p className={`text-sm font-medium ${isDark ? "text-slate-200" : "text-slate-800"}`}>{tx.description}</p>
                     </div>
                     <div className="text-right">
-                      <p className={`font-bold ${tx.type === "income" ? "text-emerald-400" : "text-slate-200"}`}>
+                      <p className={`font-bold ${tx.type === "income" ? "text-emerald-400" : isDark ? "text-slate-200" : "text-slate-800"}`}>
                         {tx.type === "expense" ? "-" : "+"}{Number(tx.amount_etb).toLocaleString()} ETB
                       </p>
                       {tx.original_currency === "USD" && (
@@ -566,37 +634,37 @@ export default function ReusableTracker() {
       )}
 
       {activeTab === "add" && (
-        <main className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-lg mx-auto space-y-4">
-          <h2 className="text-lg font-bold text-slate-200">New Transaction Entry</h2>
+        <main className={`${cardClass} border p-6 rounded-2xl max-w-lg mx-auto space-y-4`}>
+          <h2 className={`text-lg font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>New Transaction Entry</h2>
           <form onSubmit={handleAddManual} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Date</label>
-              <input type="text" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none" required />
+              <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Date</label>
+              <input type="text" value={formDate} onChange={(e) => setFormDate(e.target.value)} className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`} required />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Type</label>
-                <select value={formType} onChange={(e) => setFormType(e.target.value as any)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none">
+                <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Type</label>
+                <select value={formType} onChange={(e) => setFormType(e.target.value as any)} className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`}>
                   <option value="expense">Expense</option>
                   <option value="income">Income</option>
                   <option value="loan">Loan Payment</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Currency</label>
-                <select value={formCurrency} onChange={(e) => setFormCurrency(e.target.value as any)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none">
+                <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Currency</label>
+                <select value={formCurrency} onChange={(e) => setFormCurrency(e.target.value as any)} className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`}>
                   <option value="ETB">ETB</option>
                   <option value="USD">USD ($)</option>
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Amount</label>
-              <input type="number" step="any" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} placeholder="0.00" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none" required />
+              <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Amount</label>
+              <input type="number" step="any" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} placeholder="0.00" className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`} required />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Category</label>
-              <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none">
+              <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Category</label>
+              <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`}>
                 <option value="Food">Food & Grocery</option>
                 <option value="Transport / Fuel">Transport / Fuel</option>
                 <option value="Car Expenses">Car Maintenance</option>
@@ -607,8 +675,8 @@ export default function ReusableTracker() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Description</label>
-              <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Description" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none" />
+              <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Description</label>
+              <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Description" className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${inputClass}`} />
             </div>
             <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/20">
               Save Entry
@@ -617,20 +685,39 @@ export default function ReusableTracker() {
         </main>
       )}
 
+      {/* CSV Bulk Import View */}
       {activeTab === "csv" && (
-        <main className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-2xl mx-auto space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-bold text-slate-200">Bulk CSV Import</h2>
-            <button onClick={downloadCsvTemplate} className="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold px-3 py-2 rounded-xl border border-slate-700">
-              📥 Sample CSV
+        <main className={`${cardClass} border p-6 rounded-2xl max-w-2xl mx-auto space-y-6`}>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className={`text-lg font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>Bulk CSV Import</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Upload a `.csv` file directly from your phone/PC or paste raw text below.</p>
+            </div>
+            <button onClick={downloadCsvTemplate} className={`text-xs border px-3 py-2 rounded-xl font-semibold ${isDark ? "bg-slate-800 border-slate-700 text-emerald-400" : "bg-slate-100 border-slate-300 text-emerald-600"}`}>
+              📥 Download Sample CSV
             </button>
           </div>
-          <textarea
-            value={csvContent}
-            onChange={(e) => setCsvContent(e.target.value)}
-            placeholder={`Date,Type,Amount,Currency,Category,Description\n2026-07-01,income,15000,ETB,Income Stream,Salary Payment`}
-            className="w-full h-56 bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-300 focus:outline-none"
-          ></textarea>
+
+          {/* DEVICE FILE UPLOAD OPTION */}
+          <div className={`p-4 border border-dashed rounded-xl flex flex-col items-center justify-center text-center gap-2 ${isDark ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-300"}`}>
+            <p className="text-xs font-medium text-slate-400">Select `.csv` file from your device</p>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+              className="text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-500 file:text-slate-950 hover:file:bg-emerald-400 cursor-pointer"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className={`block text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-600"}`}>CSV Data Preview / Raw Text</label>
+            <textarea
+              value={csvContent}
+              onChange={(e) => setCsvContent(e.target.value)}
+              placeholder={`Date,Type,Amount,Currency,Category,Description\n2026-07-01,income,15000,ETB,Income Stream,Salary Payment`}
+              className={`w-full h-48 border rounded-xl p-4 text-xs font-mono focus:outline-none ${inputClass}`}
+            ></textarea>
+          </div>
 
           <button onClick={handleCustomCsvImport} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/20">
             Process CSV Import
