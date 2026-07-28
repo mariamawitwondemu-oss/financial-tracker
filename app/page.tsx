@@ -1,335 +1,575 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/lib/supabase";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 export interface Transaction {
   id: string;
+  user_id: string;
   date: string;
   type: "income" | "expense" | "loan";
-  amountETB: number;
-  originalCurrency: "ETB" | "USD";
-  originalAmount: number;
+  amount_etb: number;
+  original_currency: "ETB" | "USD";
+  original_amount: number;
   category: string;
   description: string;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 const USD_TO_ETB_RATE = 180;
+const CATEGORY_COLORS: Record<string, string> = {
+  Food: "#10b981",
+  "Transport / Fuel": "#3b82f6",
+  "Car Expenses": "#f59e0b",
+  "Loans & Ekub": "#8b5cf6",
+  "Personal & Date": "#ec4899",
+  "Income Stream": "#06b6d4",
+  General: "#64748b",
+};
 
 export default function ReusableTracker() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [rawText, setRawText] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "add" | "import">("dashboard");
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
 
-  // Form State for Web Input
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "add" | "csv">("dashboard");
+
+  const [timeframe, setTimeframe] = useState<"monthly" | "yearly" | "all">("monthly");
+  const [selectedYear, setSelectedYear] = useState<string>("2026");
+  const [selectedMonth, setSelectedMonth] = useState<string>("07");
+
   const [formDate, setFormDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [formType, setFormType] = useState<"income" | "expense" | "loan">("expense");
   const [formAmount, setFormAmount] = useState<string>("");
   const [formCurrency, setFormCurrency] = useState<"ETB" | "USD">("ETB");
-  const [formCategory, setFormCategory] = useState<string>("General");
+  const [formCategory, setFormCategory] = useState<string>("Food");
   const [formDescription, setFormDescription] = useState<string>("");
 
-  // Load saved data
+  const [csvContent, setCsvContent] = useState<string>("");
+
+  // Load local user profile list
   useEffect(() => {
-    const saved = localStorage.getItem("financial_tracker_data");
-    if (saved) {
-      try {
-        setTransactions(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load saved data", e);
-      }
+    const savedUsers = localStorage.getItem("ft_users");
+    const activeUser = localStorage.getItem("ft_active_user");
+    if (savedUsers) {
+      try { setUsers(JSON.parse(savedUsers)); } catch (e) {}
+    }
+    if (activeUser) {
+      try { setCurrentUser(JSON.parse(activeUser)); } catch (e) {}
     }
   }, []);
 
-  const saveTransactions = (data: Transaction[]) => {
-    setTransactions(data);
-    localStorage.setItem("financial_tracker_data", JSON.stringify(data));
+  // Fetch live Cloud Transactions from Supabase whenever user changes
+  useEffect(() => {
+    if (currentUser) {
+      fetchCloudTransactions(currentUser.id);
+    }
+  }, [currentUser]);
+
+  const fetchCloudTransactions = async (userId: string) => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching transactions:", error.message);
+    } else if (data) {
+      setAllTransactions(data as Transaction[]);
+    }
+    setLoading(false);
   };
 
-  const detectCategory = (text: string): string => {
-    const t = text.toLowerCase();
-    if (t.includes("food") || t.includes("lunch") || t.includes("dinner") || t.includes("ergo") || t.includes("donut") || t.includes("cake") || t.includes("ertb") || t.includes("dabo") || t.includes("sosi")) return "Food";
-    if (t.includes("transport") || t.includes("taxi") || t.includes("raid") || t.includes("petrol") || t.includes("diesel")) return "Transport / Fuel";
-    if (t.includes("loan") || t.includes("repay") || t.includes("ekub")) return "Loans & Ekub";
-    if (t.includes("car") || t.includes("maintenance") || t.includes("decor") || t.includes("goma") || t.includes("hoz")) return "Car Expenses";
-    if (t.includes("date") || t.includes("cinema") || t.includes("gift") || t.includes("ps") || t.includes("pool")) return "Personal & Date";
-    if (t.includes("badboyz") || t.includes("exness") || t.includes("trading") || t.includes("phone") || t.includes("sale")) return "Income Stream";
-    return "General";
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName || !regEmail) return;
+
+    const newUser: User = { id: Date.now().toString(), name: regName, email: regEmail };
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    setCurrentUser(newUser);
+
+    localStorage.setItem("ft_users", JSON.stringify(updatedUsers));
+    localStorage.setItem("ft_active_user", JSON.stringify(newUser));
+
+    setRegName("");
+    setRegEmail("");
   };
 
-  // Text Log Parsing Logic
-  const handleParseText = () => {
-    if (!rawText.trim()) return;
+  const handleSwitchUser = (userId: string) => {
+    const found = users.find((u) => u.id === userId);
+    if (found) {
+      setCurrentUser(found);
+      localStorage.setItem("ft_active_user", JSON.stringify(found));
+    }
+  };
 
-    const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-    const parsedData: Transaction[] = [];
+  // Filter transactions by selected timeframe
+  const filteredTransactions = useMemo(() => {
+    return allTransactions.filter((t) => {
+      if (timeframe === "all") return true;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) return true;
 
-    let currentDate = new Date().toISOString().split("T")[0];
-    let currentSection: "income" | "expense" | "loan" = "expense";
+      const y = d.getFullYear().toString();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
 
-    lines.forEach((line, idx) => {
-      const lower = line.toLowerCase();
+      if (timeframe === "yearly") return y === selectedYear;
+      if (timeframe === "monthly") return y === selectedYear && m === selectedMonth;
+      return true;
+    });
+  }, [allTransactions, timeframe, selectedYear, selectedMonth]);
 
-      // Detect Date lines (e.g. Sep15 2025, Jan 14, April 8, etc.)
-      if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(line)) {
-        currentDate = line;
-        return;
-      }
+  const categoryChartData = useMemo(() => {
+    const expenses = filteredTransactions.filter((t) => t.type === "expense");
+    const map: Record<string, number> = {};
 
-      // Detect Section Switch
-      if (lower.includes("income") || lower.includes("today income") || lower === "in" || lower.startsWith("in ")) {
-        currentSection = "income";
-        return;
-      }
-      if (lower.includes("expense") || lower.includes("expence") || lower.includes("outcome") || lower.includes("out") || lower.startsWith("out ")) {
-        currentSection = "expense";
-        return;
-      }
-      if (lower.includes("loan")) {
-        currentSection = "loan";
-      }
-
-      // Regex matching USD ($21, $90) or ETB numbers
-      const usdMatch = line.match(/\$(\d+(\.\d+)?)/);
-      const numberMatch = line.match(/(\d+)/);
-
-      if (usdMatch) {
-        const usdAmount = parseFloat(usdMatch[1]);
-        const convertedETB = usdAmount * USD_TO_ETB_RATE;
-
-        parsedData.push({
-          id: `txt-${idx}-${Math.random().toString(36).substring(2, 7)}`,
-          date: currentDate,
-          type: currentSection,
-          amountETB: convertedETB,
-          originalCurrency: "USD",
-          originalAmount: usdAmount,
-          category: detectCategory(line),
-          description: line,
-        });
-      } else if (numberMatch && !lower.includes("total") && !lower.includes("left")) {
-        const etbAmount = parseInt(numberMatch[1], 10);
-        if (etbAmount > 0) {
-          parsedData.push({
-            id: `txt-${idx}-${Math.random().toString(36).substring(2, 7)}`,
-            date: currentDate,
-            type: currentSection,
-            amountETB: etbAmount,
-            originalCurrency: "ETB",
-            originalAmount: etbAmount,
-            category: detectCategory(line),
-            description: line,
-          });
-        }
-      }
+    expenses.forEach((t) => {
+      map[t.category] = (map[t.category] || 0) + Number(t.amount_etb);
     });
 
-    const updated = [...parsedData, ...transactions];
-    saveTransactions(updated);
-    setRawText("");
-    setActiveTab("dashboard");
-  };
+    return Object.keys(map).map((cat) => ({
+      name: cat,
+      value: map[cat],
+      color: CATEGORY_COLORS[cat] || CATEGORY_COLORS.General,
+    }));
+  }, [filteredTransactions]);
 
-  const handleAddManual = (e: React.FormEvent) => {
+  const barChartData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return months.map((m, idx) => {
+      const monthNum = String(idx + 1).padStart(2, "0");
+      const monthTx = allTransactions.filter((t) => {
+        const d = new Date(t.date);
+        if (isNaN(d.getTime())) return false;
+        return d.getFullYear().toString() === selectedYear && String(d.getMonth() + 1).padStart(2, "0") === monthNum;
+      });
+
+      const income = monthTx.filter((t) => t.type === "income").reduce((a, b) => a + Number(b.amount_etb), 0);
+      const expense = monthTx.filter((t) => t.type === "expense").reduce((a, b) => a + Number(b.amount_etb), 0);
+
+      return { month: m, Income: income, Expense: expense };
+    });
+  }, [allTransactions, selectedYear]);
+
+  const totalIncome = filteredTransactions.filter((t) => t.type === "income").reduce((a, b) => a + Number(b.amount_etb), 0);
+  const totalExpense = filteredTransactions.filter((t) => t.type === "expense").reduce((a, b) => a + Number(b.amount_etb), 0);
+
+  // Insert single transaction to Supabase Cloud
+  const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formAmount) return;
+    if (!formAmount || !currentUser) return;
 
     const rawAmt = parseFloat(formAmount);
     const amountETB = formCurrency === "USD" ? rawAmt * USD_TO_ETB_RATE : rawAmt;
 
-    const newTx: Transaction = {
+    const newTx = {
       id: Date.now().toString(),
+      user_id: currentUser.id,
       date: formDate,
       type: formType,
-      amountETB,
-      originalCurrency: formCurrency,
-      originalAmount: rawAmt,
+      amount_etb: amountETB,
+      original_currency: formCurrency,
+      original_amount: rawAmt,
       category: formCategory,
       description: formDescription || formCategory,
     };
 
-    saveTransactions([newTx, ...transactions]);
-    setFormAmount("");
-    setFormDescription("");
-    setActiveTab("dashboard");
+    const { error } = await supabase.from("transactions").insert([newTx]);
+
+    if (error) {
+      alert("Error saving: " + error.message);
+    } else {
+      await fetchCloudTransactions(currentUser.id);
+      setFormAmount("");
+      setFormDescription("");
+      setActiveTab("dashboard");
+    }
   };
 
-  // CSV Export for Spreadsheets
-  const exportToCsv = () => {
-    const headers = ["ID", "Date", "Type", "Amount (ETB)", "Original Amount", "Original Currency", "Category", "Description"];
-    const rows = transactions.map((t) => [
-      t.id,
-      `"${t.date}"`,
-      t.type,
-      t.amountETB,
-      t.originalAmount,
-      t.originalCurrency,
-      `"${t.category}"`,
-      `"${t.description.replace(/"/g, '""')}"`,
-    ]);
+  // Bulk Insert CSV into Supabase Cloud
+  const handleCustomCsvImport = async () => {
+    if (!csvContent.trim() || !currentUser) return;
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `financial_tracker_export.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const lines = csvContent.split("\n").map((l) => l.trim()).filter(Boolean);
+    const parsedData: any[] = [];
+    const startIndex = lines[0].toLowerCase().includes("date") ? 1 : 0;
+
+    for (let i = startIndex; i < lines.length; i++) {
+      const parts = lines[i].split(",").map((p) => p.replace(/^"|"$/g, "").trim());
+      if (parts.length < 3) continue;
+
+      const date = parts[0] || new Date().toISOString().split("T")[0];
+      const typeStr = (parts[1] || "expense").toLowerCase();
+      const type = typeStr.includes("inc") ? "income" : typeStr.includes("loan") ? "loan" : "expense";
+      const rawAmt = parseFloat(parts[2]) || 0;
+      const currency = (parts[3] || "ETB").toUpperCase() === "USD" ? "USD" : "ETB";
+      const category = parts[4] || "General";
+      const description = parts[5] || category;
+      const amountETB = currency === "USD" ? rawAmt * USD_TO_ETB_RATE : rawAmt;
+
+      parsedData.push({
+        id: `csv-${i}-${Math.random().toString(36).substring(2, 7)}`,
+        user_id: currentUser.id,
+        date,
+        type,
+        amount_etb: amountETB,
+        original_currency: currency,
+        original_amount: rawAmt,
+        category,
+        description,
+      });
+    }
+
+    const { error } = await supabase.from("transactions").insert(parsedData);
+
+    if (error) {
+      alert("Error importing CSV: " + error.message);
+    } else {
+      await fetchCloudTransactions(currentUser.id);
+      setCsvContent("");
+      setActiveTab("dashboard");
+    }
   };
 
-  // Metrics
-  const totalIncome = transactions.filter((t) => t.type === "income").reduce((a, b) => a + b.amountETB, 0);
-  const totalExpense = transactions.filter((t) => t.type === "expense").reduce((a, b) => a + b.amountETB, 0);
+  const downloadCsvTemplate = () => {
+    const template = `Date,Type,Amount,Currency,Category,Description\n2026-07-01,income,15000,ETB,Income Stream,Salary Payment\n2026-07-02,expense,450,ETB,Food,Dinner with friends\n2026-07-03,expense,25,USD,General,Software subscription`;
+    const blob = new Blob([template], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tracker_import_template.csv";
+    a.click();
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md w-full space-y-6 shadow-2xl">
+          <div className="text-center">
+            <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+              Financial Hub
+            </h1>
+            <p className="text-slate-400 text-sm mt-1">Select profile or register</p>
+          </div>
+
+          {users.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-400 uppercase">Select Profile</label>
+              <div className="grid grid-cols-1 gap-2">
+                {users.map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => handleSwitchUser(u.id)}
+                    className="p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex justify-between items-center transition"
+                  >
+                    <span className="font-medium text-slate-200">{u.name}</span>
+                    <span className="text-xs text-slate-500">{u.email}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleRegister} className="space-y-4 pt-4 border-t border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-300">Create New Profile</h2>
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={regName}
+              onChange={(e) => setRegName(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none"
+              required
+            />
+            <input
+              type="email"
+              placeholder="Email Address"
+              value={regEmail}
+              onChange={(e) => setRegEmail(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none"
+              required
+            />
+            <button
+              type="submit"
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/20"
+            >
+              Start Tracking
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-8 max-w-4xl mx-auto">
-      {/* Header Navigation */}
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800 pb-4 mb-6 gap-4">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-emerald-400">Financial Tracker</h1>
-          <p className="text-xs text-slate-400">Rate: $1 USD = 180 ETB</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+              Financial Hub
+            </h1>
+            <span className="text-xs bg-slate-800 border border-slate-700 text-slate-300 px-2.5 py-1 rounded-full font-semibold">
+              $1 = 180 ETB
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">Logged in as <strong className="text-slate-200">{currentUser.name}</strong></p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <button
             onClick={() => setActiveTab("dashboard")}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg font-medium text-xs sm:text-sm transition ${
-              activeTab === "dashboard" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-300"
+            className={`px-4 py-2 rounded-xl font-medium text-xs transition ${
+              activeTab === "dashboard" ? "bg-emerald-500 text-slate-950 font-bold" : "bg-slate-800/80 text-slate-300 hover:bg-slate-800"
             }`}
           >
             Dashboard
           </button>
           <button
             onClick={() => setActiveTab("add")}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg font-medium text-xs sm:text-sm transition ${
-              activeTab === "add" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-300"
+            className={`px-4 py-2 rounded-xl font-medium text-xs transition ${
+              activeTab === "add" ? "bg-emerald-500 text-slate-950 font-bold" : "bg-slate-800/80 text-slate-300 hover:bg-slate-800"
             }`}
           >
-            + Form Entry
+            + Entry
           </button>
           <button
-            onClick={() => setActiveTab("import")}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg font-medium text-xs sm:text-sm transition ${
-              activeTab === "import" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-300"
+            onClick={() => setActiveTab("csv")}
+            className={`px-4 py-2 rounded-xl font-medium text-xs transition ${
+              activeTab === "csv" ? "bg-emerald-500 text-slate-950 font-bold" : "bg-slate-800/80 text-slate-300 hover:bg-slate-800"
             }`}
           >
-            Paste Text Log
+            Bulk CSV
+          </button>
+          <button
+            onClick={() => setCurrentUser(null)}
+            className="px-3 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 text-xs rounded-xl transition"
+          >
+            Switch User
           </button>
         </div>
       </header>
 
-      {/* Dashboard View */}
       {activeTab === "dashboard" && (
         <main className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-4">
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <button
+                onClick={() => setTimeframe("monthly")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  timeframe === "monthly" ? "bg-emerald-500 text-slate-950" : "text-slate-400"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setTimeframe("yearly")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  timeframe === "yearly" ? "bg-emerald-500 text-slate-950" : "text-slate-400"
+                }`}
+              >
+                Yearly
+              </button>
+              <button
+                onClick={() => setTimeframe("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  timeframe === "all" ? "bg-emerald-500 text-slate-950" : "text-slate-400"
+                }`}
+              >
+                All Time
+              </button>
+            </div>
+
+            {timeframe !== "all" && (
+              <div className="flex items-center gap-2">
+                {timeframe === "monthly" && (
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 text-xs text-slate-200 p-2 rounded-xl focus:outline-none"
+                  >
+                    <option value="01">January</option>
+                    <option value="02">February</option>
+                    <option value="03">March</option>
+                    <option value="04">April</option>
+                    <option value="05">May</option>
+                    <option value="06">June</option>
+                    <option value="07">July</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+                )}
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 text-xs text-slate-200 p-2 rounded-xl focus:outline-none"
+                >
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                </select>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+            <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
               <span className="text-xs text-slate-400 uppercase font-semibold">Total Income</span>
-              <p className="text-2xl font-bold text-emerald-400 mt-1">{totalIncome.toLocaleString()} ETB</p>
+              <p className="text-3xl font-extrabold text-emerald-400 mt-2">{totalIncome.toLocaleString()} <span className="text-sm font-normal">ETB</span></p>
             </div>
-            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+
+            <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
               <span className="text-xs text-slate-400 uppercase font-semibold">Total Expense</span>
-              <p className="text-2xl font-bold text-rose-400 mt-1">{totalExpense.toLocaleString()} ETB</p>
+              <p className="text-3xl font-extrabold text-rose-400 mt-2">{totalExpense.toLocaleString()} <span className="text-sm font-normal">ETB</span></p>
             </div>
-            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+
+            <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
               <span className="text-xs text-slate-400 uppercase font-semibold">Net Balance</span>
-              <p className={`text-2xl font-bold mt-1 ${totalIncome - totalExpense >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                {(totalIncome - totalExpense).toLocaleString()} ETB
+              <p className={`text-3xl font-extrabold mt-2 ${totalIncome - totalExpense >= 0 ? "text-cyan-400" : "text-rose-400"}`}>
+                {(totalIncome - totalExpense).toLocaleString()} <span className="text-sm font-normal">ETB</span>
               </p>
             </div>
           </div>
 
-          <div className="flex justify-between items-center pt-2">
-            <h2 className="text-md font-semibold text-slate-200">History ({transactions.length})</h2>
-            {transactions.length > 0 && (
-              <button onClick={exportToCsv} className="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded-lg border border-slate-700">
-                📥 Export CSV
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            {transactions.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 bg-slate-900/50 rounded-xl border border-slate-800">
-                No transactions found. Use <strong>Paste Text Log</strong> or <strong>+ Form Entry</strong> to add transactions.
-              </div>
-            ) : (
-              transactions.map((tx) => (
-                <div key={tx.id} className="bg-slate-900 border border-slate-800 p-3 rounded-lg flex justify-between items-center gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${tx.type === "income" ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-rose-950 text-rose-400 border border-rose-800"}`}>
-                        {tx.type}
-                      </span>
-                      <span className="text-xs text-slate-400">{tx.date}</span>
-                      <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{tx.category}</span>
-                    </div>
-                    <p className="text-sm text-slate-200 mt-1">{tx.description}</p>
-                  </div>
-                  <div className="text-right whitespace-nowrap">
-                    <p className={`font-semibold text-base ${tx.type === "income" ? "text-emerald-400" : "text-slate-200"}`}>
-                      {tx.type === "expense" ? "-" : "+"}
-                      {tx.amountETB.toLocaleString()} ETB
-                    </p>
-                    {tx.originalCurrency === "USD" && (
-                      <p className="text-xs text-slate-500">(${tx.originalAmount} @ 180 ETB)</p>
-                    )}
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+              <h2 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                <span>🍩</span> Expense Breakdown
+              </h2>
+              {categoryChartData.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-xs text-slate-500">No expense data found.</div>
+              ) : (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={categoryChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value">
+                        {categoryChartData.map((entry, idx) => (
+                          <Cell key={`cell-${idx}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))
-            )}
+              )}
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+              <h2 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                <span>📊</span> {selectedYear} Income vs Expenses
+              </h2>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
+                    <YAxis stroke="#64748b" fontSize={11} />
+                    <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px" }} />
+                    <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Expense" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+              <h2 className="text-sm font-bold text-slate-200">Cloud Ledger ({filteredTransactions.length})</h2>
+              {loading && <span className="text-xs text-emerald-400">Syncing...</span>}
+            </div>
+
+            <div className="divide-y divide-slate-800/60 max-h-96 overflow-y-auto">
+              {filteredTransactions.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500">No cloud records found.</div>
+              ) : (
+                filteredTransactions.map((tx) => (
+                  <div key={tx.id} className="p-4 hover:bg-slate-800/30 transition flex justify-between items-center gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-md ${
+                          tx.type === "income" ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-rose-950 text-rose-400 border border-rose-800"
+                        }`}>
+                          {tx.type}
+                        </span>
+                        <span className="text-xs text-slate-400">{tx.date}</span>
+                        <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">{tx.category}</span>
+                      </div>
+                      <p className="text-sm text-slate-200 font-medium">{tx.description}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-bold ${tx.type === "income" ? "text-emerald-400" : "text-slate-200"}`}>
+                        {tx.type === "expense" ? "-" : "+"}{Number(tx.amount_etb).toLocaleString()} ETB
+                      </p>
+                      {tx.original_currency === "USD" && (
+                        <p className="text-[10px] text-slate-500">(${tx.original_amount} @ 180 ETB)</p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </main>
       )}
 
-      {/* Paste Text View */}
-      {activeTab === "import" && (
-        <main className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
-          <h2 className="text-lg font-semibold text-slate-200">Paste Text Entry</h2>
-          <p className="text-xs text-slate-400">Paste your daily message text directly here. Dollars will be converted automatically ($1 = 180 ETB).</p>
-          <textarea
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            placeholder={`Sep15 2025\nTODAY INCOME\n$21 from Badboyz\n\nExpense\n400 for earpod`}
-            className="w-full h-48 bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm font-mono text-slate-300 focus:outline-none focus:border-slate-700"
-          ></textarea>
-          <button onClick={handleParseText} className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-6 py-2.5 rounded-lg text-sm transition">
-            Process & Save Log
-          </button>
-        </main>
-      )}
-
-      {/* Manual Form Entry */}
       {activeTab === "add" && (
-        <main className="bg-slate-900 border border-slate-800 p-6 rounded-xl max-w-md mx-auto">
-          <h2 className="text-lg font-semibold text-slate-200 mb-4">Manual Quick Entry</h2>
+        <main className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-lg mx-auto space-y-4">
+          <h2 className="text-lg font-bold text-slate-200">New Transaction Entry</h2>
           <form onSubmit={handleAddManual} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Date</label>
-              <input type="text" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm" required />
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Date</label>
+              <input type="text" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none" required />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Type</label>
-                <select value={formType} onChange={(e) => setFormType(e.target.value as any)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm">
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Type</label>
+                <select value={formType} onChange={(e) => setFormType(e.target.value as any)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none">
                   <option value="expense">Expense</option>
                   <option value="income">Income</option>
                   <option value="loan">Loan Payment</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Currency</label>
-                <select value={formCurrency} onChange={(e) => setFormCurrency(e.target.value as any)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm">
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Currency</label>
+                <select value={formCurrency} onChange={(e) => setFormCurrency(e.target.value as any)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none">
                   <option value="ETB">ETB</option>
                   <option value="USD">USD ($)</option>
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Amount</label>
-              <input type="number" step="any" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} placeholder="0.00" className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm" required />
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Amount</label>
+              <input type="number" step="any" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} placeholder="0.00" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none" required />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Category</label>
-              <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm">
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Category</label>
+              <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none">
                 <option value="Food">Food & Grocery</option>
                 <option value="Transport / Fuel">Transport / Fuel</option>
                 <option value="Car Expenses">Car Maintenance</option>
@@ -340,13 +580,37 @@ export default function ReusableTracker() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Description</label>
-              <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="e.g. Lunch with Sami" className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm" />
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Description</label>
+              <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Description" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none" />
             </div>
-            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm transition mt-2">
+            <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/20">
               Save Entry
             </button>
           </form>
+        </main>
+      )}
+
+      {activeTab === "csv" && (
+        <main className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-2xl mx-auto space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-bold text-slate-200">Bulk CSV Import</h2>
+            </div>
+            <button onClick={downloadCsvTemplate} className="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold px-3 py-2 rounded-xl border border-slate-700">
+              📥 Sample CSV
+            </button>
+          </div>
+
+          <textarea
+            value={csvContent}
+            onChange={(e) => setCsvContent(e.target.value)}
+            placeholder={`Date,Type,Amount,Currency,Category,Description\n2026-07-01,income,15000,ETB,Income Stream,Salary Payment`}
+            className="w-full h-56 bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-300 focus:outline-none"
+          ></textarea>
+
+          <button onClick={handleCustomCsvImport} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/20">
+            Process CSV Import
+          </button>
         </main>
       )}
     </div>
