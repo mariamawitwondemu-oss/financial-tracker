@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
 import {
   PieChart,
   Pie,
@@ -13,7 +14,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Legend,
 } from "recharts";
 
 export interface Transaction {
@@ -28,12 +28,6 @@ export interface Transaction {
   description: string;
 }
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
 const USD_TO_ETB_RATE = 180;
 const CATEGORY_COLORS: Record<string, string> = {
   Food: "#10b981",
@@ -46,46 +40,64 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function ReusableTracker() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  // Supabase Auth State
+  const [user, setUser] = useState<User | null>(null);
+
+  // Form Registration State
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
 
+  // Existing Users List State (for quick switching)
+  const [users, setUsers] = useState<any[]>([]);
+
+  // Main Data State
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"dashboard" | "add" | "csv">("dashboard");
 
+  // Filter States
   const [timeframe, setTimeframe] = useState<"monthly" | "yearly" | "all">("monthly");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("07");
 
+  // Form Entry States
   const [formDate, setFormDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [formType, setFormType] = useState<"income" | "expense" | "loan">("expense");
   const [formAmount, setFormAmount] = useState<string>("");
   const [formCurrency, setFormCurrency] = useState<"ETB" | "USD">("ETB");
   const [formCategory, setFormCategory] = useState<string>("Food");
   const [formDescription, setFormDescription] = useState<string>("");
-
   const [csvContent, setCsvContent] = useState<string>("");
 
-  // Load local user profile list
+  // Check Supabase Auth state on load
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load local profiles list if present
   useEffect(() => {
     const savedUsers = localStorage.getItem("ft_users");
-    const activeUser = localStorage.getItem("ft_active_user");
     if (savedUsers) {
       try { setUsers(JSON.parse(savedUsers)); } catch (e) {}
     }
-    if (activeUser) {
-      try { setCurrentUser(JSON.parse(activeUser)); } catch (e) {}
-    }
   }, []);
 
-  // Fetch live Cloud Transactions from Supabase whenever user changes
+  // Fetch live Cloud Transactions when user logs in
   useEffect(() => {
-    if (currentUser) {
-      fetchCloudTransactions(currentUser.id);
+    if (user) {
+      fetchCloudTransactions(user.id);
     }
-  }, [currentUser]);
+  }, [user]);
 
   const fetchCloudTransactions = async (userId: string) => {
     setLoading(true);
@@ -103,31 +115,43 @@ export default function ReusableTracker() {
     setLoading(false);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  // Updated Registration Function (talks to Supabase Auth)
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName || !regEmail) return;
+    if (!regName || !regEmail || !regPassword) return;
 
-    const newUser: User = { id: Date.now().toString(), name: regName, email: regEmail };
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    setCurrentUser(newUser);
+    setAuthMessage("Sending verification email...");
 
-    localStorage.setItem("ft_users", JSON.stringify(updatedUsers));
-    localStorage.setItem("ft_active_user", JSON.stringify(newUser));
+    const { data, error } = await supabase.auth.signUp({
+      email: regEmail,
+      password: regPassword,
+      options: {
+        data: {
+          display_name: regName,
+        }
+      }
+    });
 
-    setRegName("");
-    setRegEmail("");
-  };
+    if (error) {
+      setAuthMessage("Error: " + error.message);
+    } else {
+      setAuthMessage("Success! Check your email for the confirmation link.");
+      setRegPassword(""); // Clear password field for safety
 
-  const handleSwitchUser = (userId: string) => {
-    const found = users.find((u) => u.id === userId);
-    if (found) {
-      setCurrentUser(found);
-      localStorage.setItem("ft_active_user", JSON.stringify(found));
+      // Cache locally for convenience list
+      const newUser = { id: data.user?.id || Date.now().toString(), name: regName, email: regEmail };
+      const updated = [...users, newUser];
+      setUsers(updated);
+      localStorage.setItem("ft_users", JSON.stringify(updated));
     }
   };
 
-  // Filter transactions by selected timeframe
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setAllTransactions([]);
+  };
+
+  // Calculations & Aggregations
   const filteredTransactions = useMemo(() => {
     return allTransactions.filter((t) => {
       if (timeframe === "all") return true;
@@ -178,17 +202,16 @@ export default function ReusableTracker() {
   const totalIncome = filteredTransactions.filter((t) => t.type === "income").reduce((a, b) => a + Number(b.amount_etb), 0);
   const totalExpense = filteredTransactions.filter((t) => t.type === "expense").reduce((a, b) => a + Number(b.amount_etb), 0);
 
-  // Insert single transaction to Supabase Cloud
   const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formAmount || !currentUser) return;
+    if (!formAmount || !user) return;
 
     const rawAmt = parseFloat(formAmount);
     const amountETB = formCurrency === "USD" ? rawAmt * USD_TO_ETB_RATE : rawAmt;
 
     const newTx = {
       id: Date.now().toString(),
-      user_id: currentUser.id,
+      user_id: user.id,
       date: formDate,
       type: formType,
       amount_etb: amountETB,
@@ -203,16 +226,15 @@ export default function ReusableTracker() {
     if (error) {
       alert("Error saving: " + error.message);
     } else {
-      await fetchCloudTransactions(currentUser.id);
+      await fetchCloudTransactions(user.id);
       setFormAmount("");
       setFormDescription("");
       setActiveTab("dashboard");
     }
   };
 
-  // Bulk Insert CSV into Supabase Cloud
   const handleCustomCsvImport = async () => {
-    if (!csvContent.trim() || !currentUser) return;
+    if (!csvContent.trim() || !user) return;
 
     const lines = csvContent.split("\n").map((l) => l.trim()).filter(Boolean);
     const parsedData: any[] = [];
@@ -233,7 +255,7 @@ export default function ReusableTracker() {
 
       parsedData.push({
         id: `csv-${i}-${Math.random().toString(36).substring(2, 7)}`,
-        user_id: currentUser.id,
+        user_id: user.id,
         date,
         type,
         amount_etb: amountETB,
@@ -249,7 +271,7 @@ export default function ReusableTracker() {
     if (error) {
       alert("Error importing CSV: " + error.message);
     } else {
-      await fetchCloudTransactions(currentUser.id);
+      await fetchCloudTransactions(user.id);
       setCsvContent("");
       setActiveTab("dashboard");
     }
@@ -265,7 +287,8 @@ export default function ReusableTracker() {
     a.click();
   };
 
-  if (!currentUser) {
+  // Registration & Auth UI Screen (When logged out)
+  if (!user) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md w-full space-y-6 shadow-2xl">
@@ -273,26 +296,8 @@ export default function ReusableTracker() {
             <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
               Financial Hub
             </h1>
-            <p className="text-slate-400 text-sm mt-1">Select profile or register</p>
+            <p className="text-slate-400 text-sm mt-1">Create an account or select profile</p>
           </div>
-
-          {users.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-400 uppercase">Select Profile</label>
-              <div className="grid grid-cols-1 gap-2">
-                {users.map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => handleSwitchUser(u.id)}
-                    className="p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex justify-between items-center transition"
-                  >
-                    <span className="font-medium text-slate-200">{u.name}</span>
-                    <span className="text-xs text-slate-500">{u.email}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           <form onSubmit={handleRegister} className="space-y-4 pt-4 border-t border-slate-800">
             <h2 className="text-sm font-semibold text-slate-300">Create New Profile</h2>
@@ -312,6 +317,25 @@ export default function ReusableTracker() {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none"
               required
             />
+
+            {/* --- PASSWORD FIELD --- */}
+            <input
+              type="password"
+              placeholder="Create a Password"
+              value={regPassword}
+              onChange={(e) => setRegPassword(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none"
+              required
+              minLength={6}
+            />
+
+            {/* --- MESSAGE DISPLAY --- */}
+            {authMessage && (
+              <p className={`text-xs font-semibold ${authMessage.includes("Error") ? "text-rose-400" : "text-emerald-400"}`}>
+                {authMessage}
+              </p>
+            )}
+
             <button
               type="submit"
               className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-500/20"
@@ -324,6 +348,7 @@ export default function ReusableTracker() {
     );
   }
 
+  // Dashboard Interface (When logged in)
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-8 max-w-6xl mx-auto space-y-6">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl gap-4">
@@ -336,7 +361,9 @@ export default function ReusableTracker() {
               $1 = 180 ETB
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">Logged in as <strong className="text-slate-200">{currentUser.name}</strong></p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Logged in as <strong className="text-slate-200">{user.user_metadata?.display_name || user.email}</strong>
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -365,10 +392,10 @@ export default function ReusableTracker() {
             Bulk CSV
           </button>
           <button
-            onClick={() => setCurrentUser(null)}
-            className="px-3 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 text-xs rounded-xl transition"
+            onClick={handleSignOut}
+            className="px-3 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs rounded-xl transition"
           >
-            Switch User
+            Sign Out
           </button>
         </div>
       </header>
@@ -593,14 +620,11 @@ export default function ReusableTracker() {
       {activeTab === "csv" && (
         <main className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-2xl mx-auto space-y-6">
           <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-bold text-slate-200">Bulk CSV Import</h2>
-            </div>
+            <h2 className="text-lg font-bold text-slate-200">Bulk CSV Import</h2>
             <button onClick={downloadCsvTemplate} className="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold px-3 py-2 rounded-xl border border-slate-700">
               📥 Sample CSV
             </button>
           </div>
-
           <textarea
             value={csvContent}
             onChange={(e) => setCsvContent(e.target.value)}
