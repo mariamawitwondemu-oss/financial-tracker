@@ -16,7 +16,6 @@ import {
   CartesianGrid,
 } from "recharts";
 
-// TYPES
 export interface Transaction {
   id: string;
   user_id: string;
@@ -28,11 +27,6 @@ export interface Transaction {
   category: string;
   description: string;
   is_recurring?: boolean;
-}
-
-export interface CategoryBudget {
-  category: string;
-  limit_etb: number;
 }
 
 export interface SavingsGoal {
@@ -53,7 +47,7 @@ const DEFAULT_CATEGORY_COLORS: Record<string, string> = {
   General: "#64748b",
 };
 
-export default function FinancialPlanner() {
+export default function UltimatePlannerApp() {
   // Theme & Auth State
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [user, setUser] = useState<User | null>(null);
@@ -63,32 +57,33 @@ export default function FinancialPlanner() {
   const [authPassword, setAuthPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
 
-  // Exchange Rate Setting
+  // App Settings
   const [usdRate, setUsdRate] = useState<number>(180);
-
-  // App Navigation
   const [activeTab, setActiveTab] = useState<"dashboard" | "add" | "budgets" | "goals" | "csv" | "settings">("dashboard");
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Core Data
+  // Core Data State
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({
     Food: 8000,
     "Transport / Fuel": 5000,
     "Car Expenses": 10000,
     "Personal & Date": 4000,
+    General: 3000,
   });
+  const [tempBudgets, setTempBudgets] = useState<Record<string, number>>({ ...budgets });
+  const [budgetSaveMessage, setBudgetSaveMessage] = useState("");
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
 
-  // Editing Modal State
+  // Editing State
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
-  // Filtering
+  // Timeframe Filters
   const [timeframe, setTimeframe] = useState<"monthly" | "yearly" | "all">("monthly");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("07");
 
-  // New Form Entry States
+  // Manual Form State
   const [formDate, setFormDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [formType, setFormType] = useState<"income" | "expense" | "loan">("expense");
   const [formAmount, setFormAmount] = useState<string>("");
@@ -97,12 +92,12 @@ export default function FinancialPlanner() {
   const [formDescription, setFormDescription] = useState<string>("");
   const [formIsRecurring, setFormIsRecurring] = useState<boolean>(false);
 
-  // New Goal Form States
+  // Savings Goal Form States
   const [goalTitle, setGoalTitle] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [goalDeposit, setGoalDeposit] = useState<{ id: string; amount: string } | null>(null);
 
-  // Bulk CSV Data
+  // CSV Data State
   const [csvContent, setCsvContent] = useState<string>("");
 
   useEffect(() => {
@@ -114,7 +109,11 @@ export default function FinancialPlanner() {
 
     const savedBudgets = localStorage.getItem("fp_budgets");
     if (savedBudgets) {
-      try { setBudgets(JSON.parse(savedBudgets)); } catch (e) {}
+      try {
+        const parsed = JSON.parse(savedBudgets);
+        setBudgets(parsed);
+        setTempBudgets(parsed);
+      } catch (e) {}
     }
 
     const savedGoals = localStorage.getItem("fp_goals");
@@ -196,7 +195,7 @@ export default function FinancialPlanner() {
     setAllTransactions([]);
   };
 
-  // ADD / EDIT / DELETE TRANSACTIONS
+  // TRANSACTIONS MANAGEMENT
   const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formAmount || !user) return;
@@ -267,13 +266,31 @@ export default function FinancialPlanner() {
     else await fetchCloudTransactions(user.id);
   };
 
-  // BUDGET & GOALS MANAGEMENT
-  const handleSaveBudget = (cat: string, limit: number) => {
-    const updated = { ...budgets, [cat]: limit };
-    setBudgets(updated);
-    localStorage.setItem("fp_budgets", JSON.stringify(updated));
+  const handleClearAllData = async () => {
+    if (!user) return;
+    const confirmation = prompt('Type "DELETE" to permanently wipe all your transaction records:');
+    if (confirmation !== "DELETE") return;
+
+    setLoading(true);
+    const { error } = await supabase.from("transactions").delete().eq("user_id", user.id);
+
+    if (error) alert("Error clearing data: " + error.message);
+    else {
+      alert("All records cleared successfully.");
+      await fetchCloudTransactions(user.id);
+    }
+    setLoading(false);
   };
 
+  // BUDGET SAVING WITH BUTTON
+  const handleSaveAllBudgets = () => {
+    setBudgets(tempBudgets);
+    localStorage.setItem("fp_budgets", JSON.stringify(tempBudgets));
+    setBudgetSaveMessage("Budgets updated successfully!");
+    setTimeout(() => setBudgetSaveMessage(""), 3000);
+  };
+
+  // SAVINGS GOALS
   const handleAddGoal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!goalTitle || !goalTarget || !user) return;
@@ -303,7 +320,63 @@ export default function FinancialPlanner() {
     setGoalDeposit(null);
   };
 
-  // CALCULATED METRICS
+  // CSV FILE IMPORT
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (text) setCsvContent(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCustomCsvImport = async () => {
+    if (!csvContent.trim() || !user) return;
+
+    const lines = csvContent.split("\n").map((l) => l.trim()).filter(Boolean);
+    const parsedData: any[] = [];
+    const startIndex = lines[0].toLowerCase().includes("date") ? 1 : 0;
+
+    for (let i = startIndex; i < lines.length; i++) {
+      const parts = lines[i].split(",").map((p) => p.replace(/^"|"$/g, "").trim());
+      if (parts.length < 3) continue;
+
+      const date = parts[0] || new Date().toISOString().split("T")[0];
+      const typeStr = (parts[1] || "expense").toLowerCase();
+      const type = typeStr.includes("inc") ? "income" : typeStr.includes("loan") ? "loan" : "expense";
+      const rawAmt = parseFloat(parts[2]) || 0;
+      const currency = (parts[3] || "ETB").toUpperCase() === "USD" ? "USD" : "ETB";
+      const category = parts[4] || "General";
+      const description = parts[5] || category;
+      const amountETB = currency === "USD" ? rawAmt * usdRate : rawAmt;
+
+      parsedData.push({
+        id: `csv-${i}-${Math.random().toString(36).substring(2, 7)}`,
+        user_id: user.id,
+        date,
+        type,
+        amount_etb: amountETB,
+        original_currency: currency,
+        original_amount: rawAmt,
+        category,
+        description,
+      });
+    }
+
+    const { error } = await supabase.from("transactions").insert(parsedData);
+
+    if (error) alert("Error importing CSV: " + error.message);
+    else {
+      await fetchCloudTransactions(user.id);
+      setCsvContent("");
+      setActiveTab("dashboard");
+    }
+  };
+
+  // CALCULATIONS & METRICS
   const filteredTransactions = useMemo(() => {
     return allTransactions.filter((t) => {
       if (timeframe === "all") return true;
@@ -343,12 +416,30 @@ export default function FinancialPlanner() {
     }));
   }, [categoryTotals]);
 
+  const barChartData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return months.map((m, idx) => {
+      const monthNum = String(idx + 1).padStart(2, "0");
+      const monthTx = allTransactions.filter((t) => {
+        const d = new Date(t.date);
+        if (isNaN(d.getTime())) return false;
+        return d.getFullYear().toString() === selectedYear && String(d.getMonth() + 1).padStart(2, "0") === monthNum;
+      });
+
+      const income = monthTx.filter((t) => t.type === "income").reduce((a, b) => a + Number(b.amount_etb), 0);
+      const expense = monthTx.filter((t) => t.type === "expense").reduce((a, b) => a + Number(b.amount_etb), 0);
+
+      return { month: m, Income: income, Expense: expense };
+    });
+  }, [allTransactions, selectedYear]);
+
+  // STYLING CLASSES
   const isDark = theme === "dark";
   const bgClass = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
   const cardClass = isDark ? "bg-slate-900/90 border-slate-800 shadow-2xl backdrop-blur-2xl" : "bg-white/90 border-slate-200 shadow-xl backdrop-blur-2xl";
   const inputClass = isDark ? "bg-slate-950/90 border-slate-800 text-slate-100 focus:border-emerald-500" : "bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500";
 
-  // AUTH SCREEN
+  // AUTH LOGGED OUT SCREEN
   if (!user) {
     return (
       <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4 transition-colors`}>
@@ -402,9 +493,10 @@ export default function FinancialPlanner() {
     );
   }
 
+  // MAIN APP INTERFACE
   return (
     <div className={`min-h-screen ${bgClass} font-sans p-4 md:p-8 max-w-6xl mx-auto space-y-6 transition-colors duration-200`}>
-      {/* NAVBAR */}
+      {/* HEADER NAVBAR */}
       <header className={`flex flex-col md:flex-row justify-between items-start md:items-center ${cardClass} border p-6 rounded-3xl gap-4 shadow-xl`}>
         <div>
           <div className="flex items-center gap-3">
@@ -416,7 +508,7 @@ export default function FinancialPlanner() {
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1 font-medium">
-            Plan & Budget: <strong className={isDark ? "text-slate-200" : "text-slate-800"}>{user.user_metadata?.display_name || user.email}</strong>
+            Account: <strong className={isDark ? "text-slate-200" : "text-slate-800"}>{user.user_metadata?.display_name || user.email}</strong>
           </p>
         </div>
 
@@ -433,10 +525,16 @@ export default function FinancialPlanner() {
           <button onClick={() => setActiveTab("add")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "add" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
             + Entry
           </button>
+          <button onClick={() => setActiveTab("csv")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "csv" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
+            Bulk CSV
+          </button>
           <button onClick={() => setActiveTab("settings")} className={`px-4 py-2.5 rounded-2xl font-black text-xs transition ${activeTab === "settings" ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : isDark ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
             ⚙️ Settings
           </button>
-          <button onClick={handleSignOut} className="px-3 py-2.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold rounded-2xl transition">
+          <button onClick={toggleTheme} className={`px-3 py-2.5 border text-xs rounded-2xl font-bold transition ${isDark ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-200 border-slate-300 text-slate-700"}`}>
+            {isDark ? "☀️ Light" : "🌙 Dark"}
+          </button>
+          <button onClick={handleSignOut} className="px-3.5 py-2.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800/80 text-rose-300 text-xs font-bold rounded-2xl transition">
             Sign Out
           </button>
         </div>
@@ -445,7 +543,29 @@ export default function FinancialPlanner() {
       {/* DASHBOARD TAB */}
       {activeTab === "dashboard" && (
         <main className="space-y-6">
-          {/* SUMMARY & STATS */}
+          {/* TIMEFRAME FILTER BAR */}
+          <div className={`${cardClass} border p-4 rounded-3xl flex flex-wrap justify-between items-center gap-4`}>
+            <div className={`flex items-center p-1.5 rounded-2xl border ${isDark ? "bg-slate-950 border-slate-800" : "bg-slate-200 border-slate-300"}`}>
+              <button onClick={() => setTimeframe("monthly")} className={`px-4 py-2 rounded-xl text-xs font-black transition ${timeframe === "monthly" ? "bg-emerald-500 text-slate-950" : "text-slate-400"}`}>Monthly</button>
+              <button onClick={() => setTimeframe("yearly")} className={`px-4 py-2 rounded-xl text-xs font-black transition ${timeframe === "yearly" ? "bg-emerald-500 text-slate-950" : "text-slate-400"}`}>Yearly</button>
+              <button onClick={() => setTimeframe("all")} className={`px-4 py-2 rounded-xl text-xs font-black transition ${timeframe === "all" ? "bg-emerald-500 text-slate-950" : "text-slate-400"}`}>All Time</button>
+            </div>
+
+            {timeframe !== "all" && (
+              <div className="flex items-center gap-2">
+                {timeframe === "monthly" && (
+                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className={`border text-xs p-3 rounded-2xl font-bold focus:outline-none ${inputClass}`}>
+                    <option value="01">January</option><option value="02">February</option><option value="03">March</option><option value="04">April</option><option value="05">May</option><option value="06">June</option><option value="07">July</option><option value="08">August</option><option value="09">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                  </select>
+                )}
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className={`border text-xs p-3 rounded-2xl font-bold focus:outline-none ${inputClass}`}>
+                  <option value="2025">2025</option><option value="2026">2026</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* SUMMARY STATS */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className={`${cardClass} border p-6 rounded-3xl`}>
               <span className="text-xs uppercase font-black text-slate-400">Total Income</span>
@@ -463,19 +583,63 @@ export default function FinancialPlanner() {
             </div>
           </div>
 
+          {/* RESTORED VISUAL CHARTS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* CATEGORY DONUT CHART */}
+            <div className={`${cardClass} border p-6 rounded-3xl flex flex-col justify-between`}>
+              <h2 className={`text-sm font-black mb-4 flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                <span>🍩</span> Expense Breakdown
+              </h2>
+              {categoryChartData.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-xs text-slate-500">No expense records found.</div>
+              ) : (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={categoryChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value">
+                        {categoryChartData.map((entry, idx) => (
+                          <Cell key={`cell-${idx}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: isDark ? "#0f172a" : "#ffffff", borderColor: "#334155", borderRadius: "16px" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+            {/* MONTHLY COMPARISON BAR CHART */}
+            <div className={`${cardClass} border p-6 rounded-3xl flex flex-col justify-between`}>
+              <h2 className={`text-sm font-black mb-4 flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                <span>📊</span> {selectedYear} Income vs Expenses
+              </h2>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e293b" : "#e2e8f0"} />
+                    <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
+                    <YAxis stroke="#64748b" fontSize={11} />
+                    <Tooltip contentStyle={{ backgroundColor: isDark ? "#0f172a" : "#ffffff", borderColor: "#334155", borderRadius: "16px" }} />
+                    <Bar dataKey="Income" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="Expense" fill="#f43f5e" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
           {/* BUDGET PROGRESS TRACKERS */}
           <div className={`${cardClass} border p-6 rounded-3xl space-y-4`}>
-            <h2 className="text-sm font-black flex items-center justify-between">
-              <span>🎯 Category Budget Planner Progress</span>
-              <button onClick={() => setActiveTab("budgets")} className="text-xs text-emerald-400 font-bold hover:underline">Manage Limits &rarr;</button>
-            </h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-sm font-black flex items-center gap-2"><span>🎯</span> Category Budget Progress</h2>
+              <button onClick={() => setActiveTab("budgets")} className="text-xs text-emerald-400 font-bold hover:underline">Edit Limits &rarr;</button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.keys(budgets).map((cat) => {
                 const limit = budgets[cat] || 0;
                 const spent = categoryTotals[cat] || 0;
                 const percentage = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
-
                 const colorClass = percentage >= 100 ? "bg-rose-500" : percentage >= 80 ? "bg-amber-500" : "bg-emerald-500";
 
                 return (
@@ -495,7 +659,7 @@ export default function FinancialPlanner() {
             </div>
           </div>
 
-          {/* UPCOMING RECURRING BILLS */}
+          {/* RECURRING BILLS */}
           {recurringBills.length > 0 && (
             <div className={`${cardClass} border p-6 rounded-3xl space-y-3`}>
               <h2 className="text-sm font-black text-amber-400">🔁 Recurring Bills & Subscriptions</h2>
@@ -513,7 +677,7 @@ export default function FinancialPlanner() {
             </div>
           )}
 
-          {/* CLOUD LEDGER */}
+          {/* LEDGER WITH EDIT / DELETE */}
           <div className={`${cardClass} border rounded-3xl overflow-hidden`}>
             <div className={`p-5 border-b ${isDark ? "border-slate-800" : "border-slate-200"} flex justify-between items-center`}>
               <h2 className="text-sm font-black">Cloud Transaction Ledger ({filteredTransactions.length})</h2>
@@ -553,12 +717,12 @@ export default function FinancialPlanner() {
         </main>
       )}
 
-      {/* CATEGORY BUDGETS TAB */}
+      {/* CATEGORY BUDGETS TAB WITH EXPLICIT SAVE BUTTON */}
       {activeTab === "budgets" && (
         <main className={`${cardClass} border p-6 rounded-3xl max-w-2xl mx-auto space-y-6 shadow-2xl`}>
           <div>
             <h2 className="text-lg font-black">🎯 Category Budget Limits</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Set monthly spending targets to keep your expenses under control.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Set monthly maximum spending thresholds per category.</p>
           </div>
 
           <div className="space-y-4">
@@ -568,19 +732,29 @@ export default function FinancialPlanner() {
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    value={budgets[cat] || 0}
-                    onChange={(e) => handleSaveBudget(cat, parseFloat(e.target.value) || 0)}
-                    className={`w-32 border rounded-xl p-2 text-xs font-bold text-right focus:outline-none ${inputClass}`}
+                    value={tempBudgets[cat] ?? 0}
+                    onChange={(e) => setTempBudgets({ ...tempBudgets, [cat]: parseFloat(e.target.value) || 0 })}
+                    className={`w-36 border rounded-xl p-2.5 text-xs font-bold text-right focus:outline-none ${inputClass}`}
                   />
                   <span className="text-xs font-bold text-slate-400">ETB</span>
                 </div>
               </div>
             ))}
           </div>
+
+          {budgetSaveMessage && (
+            <p className="text-xs text-center font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 p-3 rounded-2xl">
+              {budgetSaveMessage}
+            </p>
+          )}
+
+          <button onClick={handleSaveAllBudgets} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20">
+            💾 Save All Budgets
+          </button>
         </main>
       )}
 
-      {/* SAVINGS GOALS / VAULTS TAB */}
+      {/* SAVINGS VAULTS / GOALS TAB */}
       {activeTab === "goals" && (
         <main className="space-y-6 max-w-4xl mx-auto">
           <div className={`${cardClass} border p-6 rounded-3xl space-y-4 shadow-2xl`}>
@@ -675,7 +849,7 @@ export default function FinancialPlanner() {
 
             <div className="flex items-center gap-2 pt-1">
               <input type="checkbox" id="recurring" checked={formIsRecurring} onChange={(e) => setFormIsRecurring(e.target.checked)} className="rounded" />
-              <label htmlFor="recurring" className="text-xs font-bold text-slate-300 cursor-pointer">Make this a recurring bill / subscription</label>
+              <label htmlFor="recurring" className="text-xs font-bold text-slate-300 cursor-pointer">Make this a recurring monthly bill</label>
             </div>
 
             <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20">
@@ -685,10 +859,34 @@ export default function FinancialPlanner() {
         </main>
       )}
 
+      {/* CSV BULK IMPORT TAB */}
+      {activeTab === "csv" && (
+        <main className={`${cardClass} border p-6 rounded-3xl max-w-2xl mx-auto space-y-6 shadow-2xl`}>
+          <div>
+            <h2 className="text-lg font-black">Bulk CSV Import</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Pick a `.csv` file directly from your device or paste raw CSV lines.</p>
+          </div>
+
+          <div className={`p-6 border border-dashed rounded-3xl flex flex-col items-center justify-center text-center gap-2 ${isDark ? "bg-slate-950/80 border-slate-800" : "bg-slate-100/80 border-slate-300"}`}>
+            <p className="text-xs font-bold text-slate-400">Select `.csv` file from your device</p>
+            <input type="file" accept=".csv" onChange={handleFileUpload} className="text-xs text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-emerald-500 file:text-slate-950 hover:file:bg-emerald-400 cursor-pointer" />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-400">CSV Text Preview / Raw Input</label>
+            <textarea value={csvContent} onChange={(e) => setCsvContent(e.target.value)} placeholder={`Date,Type,Amount,Currency,Category,Description\n2026-07-01,income,15000,ETB,Income Stream,Salary Payment`} className={`w-full h-48 border rounded-2xl p-4 text-xs font-mono focus:outline-none ${inputClass}`}></textarea>
+          </div>
+
+          <button onClick={handleCustomCsvImport} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl transition shadow-xl shadow-emerald-500/20">
+            Process CSV Import
+          </button>
+        </main>
+      )}
+
       {/* SETTINGS TAB */}
       {activeTab === "settings" && (
         <main className={`${cardClass} border p-6 rounded-3xl max-w-2xl mx-auto space-y-6 shadow-2xl`}>
-          <h2 className="text-lg font-black">⚙️ Settings & Configuration</h2>
+          <h2 className="text-lg font-black">⚙️ Advanced Settings</h2>
 
           <div className="space-y-4 divide-y divide-slate-800">
             <div className="pt-2 flex justify-between items-center">
@@ -699,11 +897,10 @@ export default function FinancialPlanner() {
               <span className="text-xs bg-emerald-950 text-emerald-400 border border-emerald-800 px-3 py-1 rounded-full font-bold">Active</span>
             </div>
 
-            {/* CUSTOM EXCHANGE RATE ADJUSTMENT */}
             <div className="pt-4 flex justify-between items-center">
               <div>
                 <p className="text-sm font-bold">USD Exchange Rate (ETB)</p>
-                <p className="text-xs text-slate-400">Used to calculate USD entries</p>
+                <p className="text-xs text-slate-400">Adjust custom exchange conversion rate</p>
               </div>
               <input
                 type="number"
@@ -713,8 +910,18 @@ export default function FinancialPlanner() {
                   setUsdRate(val);
                   localStorage.setItem("fp_usd_rate", val.toString());
                 }}
-                className={`w-28 border rounded-xl p-2 text-xs font-bold text-right ${inputClass}`}
+                className={`w-28 border rounded-xl p-2.5 text-xs font-bold text-right ${inputClass}`}
               />
+            </div>
+
+            <div className="pt-4 space-y-2">
+              <div>
+                <p className="text-sm font-bold text-rose-400">Clear All Transaction Data</p>
+                <p className="text-xs text-slate-400">Permanently delete all transaction entries linked to your cloud account.</p>
+              </div>
+              <button onClick={handleClearAllData} className="w-full bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 font-black py-3 rounded-2xl transition">
+                🗑️ Clear All Cloud Data
+              </button>
             </div>
           </div>
         </main>
