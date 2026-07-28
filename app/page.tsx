@@ -69,9 +69,6 @@ const DEFAULT_CATEGORY_COLORS: Record<string, string> = {
   General: "#8A8578",
 };
 
-/** Ledger-grade typography: a restrained serif for headings, a clean sans
- * for interface text, and a tabular monospace for every monetary figure —
- * the way a statement, not a SaaS dashboard, sets numbers. */
 function FontImports() {
   return (
     <style jsx global>{`
@@ -138,7 +135,7 @@ export default function UltimatePlannerApp() {
   const [formType, setFormType] = useState<"income" | "expense" | "loan">("expense");
   const [formAmount, setFormAmount] = useState<string>("");
   const [formCurrency, setFormCurrency] = useState<"ETB" | "USD">("ETB");
-  const [formCategory, setFormCategory] = useState<string>("Food");
+  const [formCategory, setFormCategory] = useState<string>("");
   const [formDescription, setFormDescription] = useState<string>("");
   const [formIsRecurring, setFormIsRecurring] = useState<boolean>(false);
 
