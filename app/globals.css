@@ -1,26 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@font-face {
+  font-family: 'Aspekta';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/ivodolenc/aspekta@main/packages/fonts/variable/AspektaVF.woff2') format('woff2');
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --background: #FAFAFA;
+  --foreground: #0F172A;
+  
+  --brand-bg: #FAFAFA;
+  --brand-card: #FFFFFF;
+  --brand-text: #0F172A;
+  --brand-action: #0284C7;
+  --brand-action-hover: #0369a1;
+  --brand-gain: #16A34A;
+  --brand-loss: #DC2626;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0B0F19;
+    --foreground: #F8FAFC;
+    
+    --brand-bg: #0B0F19;
+    --brand-card: #1E293B;
+    --brand-text: #F8FAFC;
+    --brand-action: #38BDF8;
+    --brand-action-hover: #0284C7;
+    --brand-gain: #22C55E;
+    --brand-loss: #EF4444;
   }
 }
 
+@theme {
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-card: var(--brand-card);
+  --color-brand-text: var(--brand-text);
+  --color-brand-action: var(--brand-action);
+  --color-brand-action-hover: var(--brand-action-hover);
+  --color-brand-gain: var(--brand-gain);
+  --color-brand-loss: var(--brand-loss);
+  --font-aspekta: 'Aspekta', 'Inter', sans-serif;
+  --font-inter: 'Inter', sans-serif;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--brand-bg);
+  color: var(--brand-text);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography mappings for Modern Fintech & Neo-Bank */
+.font-display {
+  font-family: 'Aspekta', 'Inter', sans-serif;
+  font-weight: 700;
+}
+
+.font-body {
+  font-family: 'Aspekta', 'Inter', sans-serif;
+  font-weight: 450;
+}
+
+.font-ledger {
+  font-family: 'Aspekta', 'Inter', sans-serif;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Confetti Victory Animation */
+@keyframes fall {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.confetti-particle {
+  position: fixed;
+  top: -20px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: fall 3s linear forwards;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Custom scrollbars for ledger */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
 }
